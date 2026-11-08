@@ -28,7 +28,7 @@ A single web page (`index.html`) that drone pilots for Air Operations Inc use on
   - Email airopsinc@outlook.com.
   - Responsible person: Michael den Hartog, (669) 247-6776 ext. 1.
   - COA effective 9/30/2025 to 9/29/2027.
-- **Every type of landing surface counts** (owner's decision): airports, heliports, seaplane bases, gliderports, ultralight parks and balloonports, public and private. All are on by default. The notification section warns if any type is switched off.
+- **Every type of landing surface counts** (owner's decision): airports, heliports, seaplane bases, gliderports, ultralight parks and balloonports, public and private. They always count; the facility-type checkboxes were removed so pilots can't switch any off.
 
 ## Files
 

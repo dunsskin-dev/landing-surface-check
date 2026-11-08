@@ -67,18 +67,13 @@ textarea {
   font-family: var(--f-mono); font-size: 16px; line-height: 1.5; color: var(--ink);
   background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
 }
-textarea:focus-visible, input:focus-visible, button:focus-visible, a:focus-visible, label.chip:focus-within, tr:focus-visible { outline: 2px solid var(--green-hi); outline-offset: 2px; }
+textarea:focus-visible, input:focus-visible, button:focus-visible, a:focus-visible, tr:focus-visible { outline: 2px solid var(--green-hi); outline-offset: 2px; }
 .hint { font-size: 13px; color: var(--muted); margin: 0; max-width: 72ch; }
 .hint code { font-family: var(--f-mono); font-size: 12px; color: var(--ink); background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; white-space: nowrap; }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
 .group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .radius input { width: 5.2em; font-family: var(--f-mono); font-size: 16px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); }
 .unit { font-family: var(--f-mono); font-size: 14px; color: var(--ink); }
-.chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.chip { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 13.5px; cursor: pointer; color: var(--muted); background: var(--field); user-select: none; }
-.chip::before { content: ""; width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid currentColor; }
-.chip:has(input:checked) { color: var(--ink); border-color: var(--muted); }
-.chip:has(input:checked)::before { background: var(--ink); border-color: var(--ink); }
 .actions { margin-left: auto; display: flex; gap: 8px; }
 .go, .clear { font-family: var(--f-display); font-weight: 700; font-size: 17px; letter-spacing: .08em; text-transform: uppercase; padding: 9px 26px; border-radius: 8px; cursor: pointer; }
 .go { border: 0; background: var(--ink); color: var(--bg); }
@@ -221,13 +216,6 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
         <input id="radius" aria-label="Radius in nautical miles" type="number" min="0.1" max="50" step="0.1" value="2" inputmode="decimal">
         <span class="unit">NM</span>
       </div>
-      <div class="group" role="group" aria-label="Facility types to count">
-        <label class="chip"><input type="checkbox" id="t-A" checked>Airports</label>
-        <label class="chip"><input type="checkbox" id="t-H" checked>Heliports</label>
-        <label class="chip"><input type="checkbox" id="t-C" checked>Seaplane bases</label>
-        <label class="chip"><input type="checkbox" id="t-O" checked>Glider, ultralight, balloon</label>
-        <label class="chip"><input type="checkbox" id="t-PR" checked>Private use</label>
-      </div>
       <div class="actions">
         <button class="clear" id="clear" type="button">Clear</button>
         <button class="go" id="go" type="submit" disabled>Check</button>
@@ -364,7 +352,8 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
 
   var DB = null, LATS = null, EFF = "";
   // All distances are in nautical miles; the radius is in NM.
-  var state = { radius: 2, types: { A: true, H: true, C: true, O: true }, priv: true };
+  // Every FAA landing facility counts (owner's rule): all types, public and private.
+  var state = { radius: 2 };
   var queries = [], sel = 0;
   var $ = function (id) { return document.getElementById(id); };
 
@@ -374,14 +363,10 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     var saved = JSON.parse(localStorage.getItem("lsc-settings-v2") || "null");
     if (saved && typeof saved === "object") {
       if (saved.radius > 0) state.radius = saved.radius;
-      if (saved.types) for (var k in state.types) if (k in saved.types) state.types[k] = !!saved.types[k];
-      if ("priv" in saved) state.priv = !!saved.priv;
     }
   } catch (e) {}
   function saveSettings() { try { localStorage.setItem("lsc-settings-v2", JSON.stringify(state)); } catch (e) {} }
   $("radius").value = state.radius;
-  ["A", "H", "C", "O"].forEach(function (k) { $("t-" + k).checked = state.types[k]; });
-  $("t-PR").checked = state.priv;
 
   // ---------- helpers ----------
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -538,12 +523,6 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
 
   // ---------- search ----------
   function lowerBound(x) { var lo = 0, hi = LATS.length; while (lo < hi) { var mid = (lo + hi) >> 1; if (LATS[mid] < x) lo = mid + 1; else hi = mid; } return lo; }
-  function passes(r) {
-    var g = TYPES[r[2]] ? TYPES[r[2]].group : "A";
-    if (!state.types[g]) return false;
-    if (!state.priv && r[5] === "PR") return false;
-    return true;
-  }
   function candidates(lat0, lon0, rMi) {
     var padMi = rMi + 5, dLat = padMi / 69.05;
     var lo = lowerBound(lat0 - dLat), hi = lowerBound(lat0 + dLat + 1e-9);
@@ -579,7 +558,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     return best;
   }
   function measured(lat0, lon0, rMi) {
-    return candidates(lat0, lon0, rMi).filter(function (i) { return passes(DB[i]); })
+    return candidates(lat0, lon0, rMi)
       .map(function (i) { return measure(i, lat0, lon0); })
       .sort(function (a, b) { return a.d - b.d; });
   }
@@ -703,10 +682,6 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
       sub.push("Closest: " + r[0] + " " + facName(r) + ", " + (q.closest.d < ON_SITE ? "this point is " + viaText(q.closest) : distDir(q.closest)) + ".");
     }
     if (q.closed.length) sub.push(q.closed.length + " more within " + R + " " + (q.closed.length === 1 ? "is" : "are") + " listed as closed indefinitely.");
-    var off = [];
-    if (!state.types.A) off.push("airports"); if (!state.types.H) off.push("heliports"); if (!state.types.C) off.push("seaplane bases");
-    if (!state.types.O) off.push("glider, ultralight and balloon sites"); if (!state.priv) off.push("private-use sites");
-    if (off.length) sub.push("Not counting " + off.join(", ") + ".");
     $("vsub").textContent = sub.join(" ");
     $("vnotes").innerHTML = q.notes.map(function (nt) { return '<p class="note">' + esc(nt) + "</p>"; }).join("");
     $("vtools").hidden = false;
@@ -719,7 +694,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     var inside = q.open.concat(q.closed).sort(function (a, b) { return a.d - b.d; });
     html += '<div><h2' + (q.yes ? ' class="hot"' : "") + ">Within " + esc(R) + " (" + inside.length + ")</h2>";
     html += inside.length ? "<ol>" + inside.map(function (m) { return facItem(m, false); }).join("") + "</ol>"
-      : '<p class="empty">No FAA-listed landing surface' + (state.priv ? "" : " open to the public") + " within " + esc(R) + " of this point.</p>";
+      : '<p class="empty">No FAA-listed landing surface within ' + esc(R) + " of this point.</p>";
     html += "</div>";
     if (q.beyond.length) html += "<div><h2>Nearest beyond " + esc(R) + "</h2><ol>" + q.beyond.map(function (m) { return facItem(m, true); }).join("") + "</ol></div>";
     $("list").innerHTML = html;
@@ -906,7 +881,6 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     else if (nfQuery.yes) msgs.push(["bad", "This location does not fall under the national waiver: " + nfQuery.open.length + " landing " + (nfQuery.open.length === 1 ? "surface" : "surfaces") + " within " + fmtRadius() + "."]);
     else msgs.push(["good", "Location is clear to fly under the national waiver."]);
     if (nfQuery && +state.radius !== COA.radiusNm) msgs.push(["warn", "The radius is set to " + fmtRadius() + ". The COA uses " + COA.radiusNm + " NM."]);
-    if (nfQuery && (!state.types.A || !state.types.H || !state.types.C || !state.types.O || !state.priv)) msgs.push(["warn", "Some facility types are turned off above, so this check may miss landing surfaces."]);
     var d = $("nf-date").value, s = $("nf-start").value, dur = $("nf-dur").value, p = nfPilot();
     if (d && (d < COA.start || d > COA.end)) msgs.push(["bad", "This date is outside the COA's effective dates (9/30/2025 to 9/29/2027)."]);
     else if (d && d < todayISO()) msgs.push(["warn", "This date is in the past."]);
@@ -1008,10 +982,6 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     var v = parseFloat(this.value);
     if (v > 0 && v <= 500) { state.radius = v; saveSettings(); if (queries.length) rerun(); }
   });
-  ["A", "H", "C", "O"].forEach(function (k) {
-    $("t-" + k).addEventListener("change", function () { state.types[k] = this.checked; saveSettings(); if (queries.length) rerun(); });
-  });
-  $("t-PR").addEventListener("change", function () { state.priv = this.checked; saveSettings(); if (queries.length) rerun(); });
   function pickRow(tr) { if (!tr) return; sel = +tr.dataset.i; renderBatch(); renderSelected(); }
   $("batch-rows").addEventListener("click", function (e) { pickRow(e.target.closest("tr")); });
   $("batch-rows").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickRow(e.target.closest("tr")); } });
