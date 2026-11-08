@@ -95,7 +95,9 @@ textarea:focus-visible, input:focus-visible, button:focus-visible, a:focus-visib
 .nf-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; }
 .nf-field { display: grid; gap: 4px; min-width: 0; }
 .nf-field.wide { grid-column: span 2; }
-.nf-field input { width: 100%; min-width: 0; font-family: var(--f-mono); font-size: 16px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); }
+.nf-field input, .nf-field select { width: 100%; min-width: 0; font-family: var(--f-mono); font-size: 16px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); }
+.nf-field select { min-height: 41px; }
+select:focus-visible { outline: 2px solid var(--green-hi); outline-offset: 2px; }
 .nf-field input[readonly] { background: transparent; border-style: dashed; }
 .nf-msgs { display: grid; gap: 4px; }
 .nf-msg { margin: 0; font-size: 14px; color: var(--muted); }
@@ -232,12 +234,33 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
       <a href="coa/AOI-2025-P107-ESA-26380-Nationwide.pdf" target="_blank" rel="noopener">View COA 2025-P107-ESA-26380 (PDF)</a>
     </div>
     <div class="nf-grid">
-      <label class="nf-field full-sm"><span class="lbl">Site ID</span><input id="nf-site" type="text" placeholder="Site FA number" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
-      <label class="nf-field wide"><span class="lbl">Lat/Long</span><input id="nf-ll" type="text" readonly placeholder="Filled in when you check coordinates"></label>
+      <label class="nf-field full-sm"><span class="lbl">Site ID</span><input id="nf-site" type="text" placeholder="Site ID" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+      <label class="nf-field full-sm"><span class="lbl">Lat/Long</span><input id="nf-ll" type="text" readonly placeholder="Fills in after Check"></label>
       <label class="nf-field full-sm"><span class="lbl">COA #</span><input id="nf-coa" type="text" readonly value="2025-P107-ESA-26380"></label>
       <label class="nf-field full-sm"><span class="lbl">Date</span><input id="nf-date" type="date"></label>
       <label class="nf-field"><span class="lbl">Start time</span><input id="nf-start" type="time"></label>
-      <label class="nf-field"><span class="lbl">End time</span><input id="nf-end" type="time"></label>
+      <label class="nf-field"><span class="lbl">Est. time on site</span>
+        <select id="nf-dur">
+          <option value="">Select</option>
+          <option value="30">30 min</option>
+          <option value="60">1 hr</option>
+          <option value="90">1 hr 30 min</option>
+          <option value="120">2 hr</option>
+          <option value="150">2 hr 30 min</option>
+          <option value="180">3 hr</option>
+          <option value="210">3 hr 30 min</option>
+          <option value="240">4 hr</option>
+          <option value="300">5 hr</option>
+          <option value="360">6 hr</option>
+          <option value="420">7 hr</option>
+          <option value="480">8 hr</option>
+          <option value="600">10 hr</option>
+          <option value="720">12 hr</option>
+        </select>
+      </label>
+      <label class="nf-field full-sm"><span class="lbl">Pilot name</span><input id="nf-pname" type="text" autocomplete="name" autocapitalize="words" spellcheck="false"></label>
+      <label class="nf-field full-sm"><span class="lbl">Pilot phone</span><input id="nf-pphone" type="tel" autocomplete="tel" inputmode="tel"></label>
+      <label class="nf-field full-sm"><span class="lbl">Pilot email</span><input id="nf-pemail" type="email" autocomplete="email" autocapitalize="off" spellcheck="false"></label>
     </div>
     <div class="nf-msgs" id="nf-msgs" aria-live="polite"></div>
     <pre class="nf-preview" id="nf-preview" aria-label="Notification text"></pre>
@@ -247,7 +270,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
       <button type="button" class="btn" id="nf-copy">Copy</button>
       <span class="copied" id="nf-copied" aria-live="polite"></span>
     </div>
-    <p class="nf-contact">Schedule by text to <a href="sms:+19132191370">913.219.1370</a> or email <a href="mailto:airopsinc@outlook.com">airopsinc@outlook.com</a>. Responsible person, who must be reachable for the whole flight: Michael den Hartog, <a href="tel:+16692476776,1">(669) 247-6776 ext. 1</a>. COA effective 9/30/2025 to 9/29/2027.</p>
+    <p class="nf-contact">Schedule by text to <a href="sms:+19132191370">913.219.1370</a> or email <a href="mailto:airopsinc@outlook.com">airopsinc@outlook.com</a>. Responsible person, who must be reachable for the whole flight: Michael den Hartog, <a href="tel:+16692476776,1">(669) 247-6776 ext. 1</a>. COA effective 9/30/2025 to 9/29/2027. Your pilot name, phone and email are saved only on this device and filled in next time.</p>
   </section>
 
   <section class="batch" id="batch" hidden>
@@ -802,14 +825,35 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
   function fmtClock(dateStr, t) {
     return new Date(dateStr + "T" + t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   }
-  function nfWindow() {
-    var d = $("nf-date").value, s = $("nf-start").value, e = $("nf-end").value;
-    if (!d) return "";
-    var day = new Date(d + "T12:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
-    if (!s && !e) return day;
+  function fmtDur(min) { var h = Math.floor(min / 60), m = min % 60; return (h ? h + " hr" : "") + (h && m ? " " : "") + (m ? m + " min" : ""); }
+  function nfDay() {
+    var d = $("nf-date").value;
+    return d ? new Date(d + "T12:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "";
+  }
+  function nfStartText() {
+    var d = $("nf-date").value || todayISO(), s = $("nf-start").value;
+    if (!s) return "";
     var tz = "";
-    try { tz = new Date(d + "T" + (s || e)).toLocaleTimeString("en-US", { timeZoneName: "short" }).split(" ").pop(); } catch (err) {}
-    return day + ", " + (s ? fmtClock(d, s) : "?") + " to " + (e ? fmtClock(d, e) : "?") + (tz ? " " + tz : "");
+    try { tz = new Date(d + "T" + s).toLocaleTimeString("en-US", { timeZoneName: "short" }).split(" ").pop(); } catch (err) {}
+    return fmtClock(d, s) + (tz ? " " + tz : "");
+  }
+  function nfDurText() {
+    var dur = +$("nf-dur").value, s = $("nf-start").value, d = $("nf-date").value || todayISO();
+    if (!dur) return "";
+    var t = fmtDur(dur);
+    if (s) {
+      var start = new Date(d + "T" + s), end = new Date(start.getTime() + dur * 60000);
+      t += " (until about " + end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) + (end.getDate() !== start.getDate() ? " the next day" : "") + ")";
+    }
+    return t;
+  }
+  function nfPilot() { return { name: $("nf-pname").value.trim(), phone: $("nf-pphone").value.trim(), email: $("nf-pemail").value.trim() }; }
+  function nfSavePilot() { try { localStorage.setItem("lsc-pilot", JSON.stringify(nfPilot())); } catch (err) {} }
+  function nfLoadPilot() {
+    try {
+      var p = JSON.parse(localStorage.getItem("lsc-pilot") || "null");
+      if (p && typeof p === "object") { $("nf-pname").value = p.name || ""; $("nf-pphone").value = p.phone || ""; $("nf-pemail").value = p.email || ""; }
+    } catch (err) {}
   }
   function nfCheckLine() {
     if (!nfQuery) return "";
@@ -819,13 +863,18 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
       : "Landing surface check: clear, no landing surfaces within " + fmtRadius() + " (FAA data " + EFF + ")";
   }
   function nfText() {
-    var site = $("nf-site").value.trim();
+    var site = $("nf-site").value.trim(), p = nfPilot(), none = "(not entered)";
     return [
       "Flight notification",
-      "Site ID: " + (site || "(not entered)"),
+      "Site ID: " + (site || none),
       "Lat/Long: " + ($("nf-ll").value || "(not checked)"),
       "COA #: " + COA.id,
-      "Date/time window: " + (nfWindow() || "(not entered)"),
+      "Date: " + (nfDay() || none),
+      "Start time: " + (nfStartText() || none),
+      "Est. time on site: " + (nfDurText() || none),
+      "Pilot: " + (p.name || none),
+      "Pilot phone: " + (p.phone || none),
+      "Pilot email: " + (p.email || none),
       nfCheckLine()
     ].filter(Boolean).join("\n");
   }
@@ -836,26 +885,32 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     else msgs.push(["good", "Location is clear to fly under the national waiver."]);
     if (nfQuery && +state.radius !== COA.radiusNm) msgs.push(["warn", "The radius is set to " + fmtRadius() + ". The COA uses " + COA.radiusNm + " NM."]);
     if (nfQuery && (!state.types.A || !state.types.H || !state.types.C || !state.priv)) msgs.push(["warn", "Some facility types are turned off above, so this check may miss landing surfaces."]);
-    var d = $("nf-date").value, s = $("nf-start").value, e = $("nf-end").value;
+    var d = $("nf-date").value, s = $("nf-start").value, dur = $("nf-dur").value, p = nfPilot();
     if (d && (d < COA.start || d > COA.end)) msgs.push(["bad", "This date is outside the COA's effective dates (9/30/2025 to 9/29/2027)."]);
     else if (d && d < todayISO()) msgs.push(["warn", "This date is in the past."]);
-    if (s && e && e <= s) msgs.push(["warn", "The end time is not after the start time."]);
+    if (p.phone && p.phone.replace(/\D/g, "").length < 10) msgs.push(["warn", "The pilot phone number looks incomplete."]);
+    if (p.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)) msgs.push(["warn", "The pilot email doesn't look complete."]);
     var missing = [];
     if (!$("nf-site").value.trim()) missing.push("Site ID");
     if (!d) missing.push("date");
     if (!s) missing.push("start time");
-    if (!e) missing.push("end time");
+    if (!dur) missing.push("time on site");
+    if (!p.name) missing.push("pilot name");
+    if (!p.phone) missing.push("pilot phone");
+    if (!p.email) missing.push("pilot email");
     if (missing.length) msgs.push(["", "Still needed: " + missing.join(", ") + "."]);
     $("nf-msgs").innerHTML = msgs.map(function (m) { return '<p class="nf-msg ' + m[0] + '">' + esc(m[1]) + "</p>"; }).join("");
     var text = nfText();
     $("nf-preview").textContent = text;
     var site = $("nf-site").value.trim();
-    var subject = "Flight notification" + (site ? ": Site " + site : "") + (nfWindow() ? ", " + nfWindow() : "");
+    var when = [nfDay(), nfStartText()].filter(Boolean).join(" ");
+    var subject = "Flight notification" + (site ? ": Site " + site : "") + (when ? ", " + when : "") + (p.name ? " (" + p.name + ")" : "");
     $("nf-sms").href = "sms:" + OPS_SMS + "?&body=" + encodeURIComponent(text);
     $("nf-email").href = "mailto:" + OPS_EMAIL + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(text.replace(/\n/g, "\r\n"));
     $("nf-copied").textContent = "";
   }
-  ["nf-site", "nf-date", "nf-start", "nf-end"].forEach(function (id) { $(id).addEventListener("input", nfUpdate); $(id).addEventListener("change", nfUpdate); });
+  ["nf-site", "nf-date", "nf-start", "nf-dur", "nf-pname", "nf-pphone", "nf-pemail"].forEach(function (id) { $(id).addEventListener("input", nfUpdate); $(id).addEventListener("change", nfUpdate); });
+  ["nf-pname", "nf-pphone", "nf-pemail"].forEach(function (id) { $(id).addEventListener("input", nfSavePilot); $(id).addEventListener("change", nfSavePilot); });
   $("nf-copy").addEventListener("click", function () {
     var txt = nfText();
     function fallback() {
@@ -868,6 +923,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     try { navigator.clipboard.writeText(txt).then(function () { $("nf-copied").textContent = "Copied."; }, fallback); } catch (err) { fallback(); }
   });
   $("nf-date").value = todayISO();
+  nfLoadPilot();
   nfUpdate();
 
   function run(fromInput) {
