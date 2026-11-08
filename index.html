@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Landing Surface Check</title>
+<meta name="description" content="Enter GPS coordinates to see whether any FAA-listed airport, heliport or seaplane base is within 2 miles, anywhere in the U.S.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%231ED46A' stroke-width='3'/%3E%3Cpath d='M16 9.5v4.5M16 18v4.5M9.5 16h4.5M18 16h4.5' stroke='%23F2F2F2' stroke-width='2'/%3E%3C/svg%3E">
+<style>
+/* Base reset (the Claude artifact host supplied this before). */
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column. Coordinate entry on top, a full-color waiver verdict band (red = landing surface in range, green = clear), then a to-scale range plot beside the facility list (stacks on phones). Deliberately single-theme: black ground for field use. */
+:root {
+  --bg: #000000;
+  --panel: #0D0D0D;
+  --field: #171717;
+  --ink: #F2F2F2;
+  --muted: #9A9A9A;
+  --line: #2A2A2A;
+  --grid: #1F1F1F;
+  --red: #D11F28;
+  --red-hi: #FF4F57;
+  --on-red: #FFFFFF;
+  --green: #1ED46A;
+  --green-hi: #3BE07F;
+  --on-green: #03140A;
+  --dim: #858585;
+  --f-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "Barlow", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45; }
+.wrap {
+  max-width: 1120px; margin: 0 auto;
+  padding-block: 22px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 18px;
+}
+.num { font-variant-numeric: tabular-nums; }
+a { color: var(--ink); text-underline-offset: 3px; }
+a:hover { color: var(--green-hi); }
+
+/* Header */
+.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 18px; }
+h1 { margin: 0; font-family: var(--f-display); font-weight: 700; font-size: 32px; letter-spacing: .02em; text-transform: uppercase; line-height: 1; text-wrap: balance; }
+h1 span { color: var(--red-hi); }
+.source { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+
+/* Input */
+.entry { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; }
+.lbl { font-family: var(--f-display); font-weight: 600; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+textarea {
+  width: 100%; min-height: 3.4em; resize: vertical;
+  font-family: var(--f-mono); font-size: 16px; line-height: 1.5; color: var(--ink);
+  background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+}
+textarea:focus-visible, input:focus-visible, button:focus-visible, a:focus-visible, label.chip:focus-within, .seg label:focus-within, tr:focus-visible { outline: 2px solid var(--green-hi); outline-offset: 2px; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; max-width: 72ch; }
+.hint code { font-family: var(--f-mono); font-size: 12px; color: var(--ink); background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; white-space: nowrap; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.radius input { width: 5.2em; font-family: var(--f-mono); font-size: 16px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg label { position: relative; padding: 6px 10px; font-family: var(--f-mono); font-size: 13px; cursor: pointer; color: var(--muted); background: var(--field); }
+.seg label + label { border-left: 1px solid var(--line); }
+.seg input, .chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.seg label:has(input:checked) { background: var(--ink); color: var(--bg); }
+.chip { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 13.5px; cursor: pointer; color: var(--muted); background: var(--field); user-select: none; }
+.chip::before { content: ""; width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid currentColor; }
+.chip:has(input:checked) { color: var(--ink); border-color: var(--muted); }
+.chip:has(input:checked)::before { background: var(--ink); border-color: var(--ink); }
+.go { margin-left: auto; font-family: var(--f-display); font-weight: 700; font-size: 17px; letter-spacing: .08em; text-transform: uppercase; padding: 9px 26px; border-radius: 8px; border: 0; background: var(--ink); color: var(--bg); cursor: pointer; }
+.go:hover { background: #FFFFFF; }
+.go:disabled { opacity: .45; cursor: progress; }
+
+/* Batch table */
+.batch { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.batch-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 16px 8px; flex-wrap: wrap; }
+.batch-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font-family: var(--f-display); font-weight: 600; font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 6px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 8px 16px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+tbody tr { cursor: pointer; }
+tbody tr:hover td { background: var(--field); }
+tbody tr[aria-selected="true"] td { background: var(--field); box-shadow: inset 0 -2px 0 var(--ink); }
+td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
+.pill { display: inline-block; font-family: var(--f-display); font-weight: 700; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; padding: 1px 8px; border-radius: 4px; white-space: nowrap; }
+.pill.red { background: var(--red); color: var(--on-red); }
+.pill.green { background: var(--green); color: var(--on-green); }
+.pill.err { border: 1px solid var(--muted); color: var(--muted); }
+
+/* Verdict */
+.verdict { border-radius: 10px; padding: 20px 22px; display: grid; gap: 8px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); }
+.verdict[data-state="red"] { background: var(--red); border-color: var(--red); color: var(--on-red); }
+.verdict[data-state="green"] { background: var(--green); border-color: var(--green); color: var(--on-green); }
+.verdict[data-state="err"] { border-color: var(--muted); }
+.headline { margin: 0; font-family: var(--f-display); font-weight: 700; font-size: clamp(30px, 5.6vw, 52px); line-height: .98; letter-spacing: .015em; text-transform: uppercase; text-wrap: balance; }
+.vline { font-size: 18px; font-weight: 600; line-height: 1.3; margin: 0; text-wrap: balance; }
+.vsub { margin: 0; font-size: 14.5px; opacity: .88; }
+.where { font-family: var(--f-mono); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 14px; opacity: .92; }
+.verdict .note { margin: 0; font-size: 14px; font-weight: 600; }
+.verdict .note::before { content: "Note: "; }
+.vtools { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 4px; }
+.verdict a, .linkbtn { color: inherit; }
+.tag { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; border: 1px dashed currentColor; border-radius: 4px; padding: 1px 6px; opacity: .85; }
+.linkbtn { font: inherit; font-size: 14px; font-weight: 600; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.verdict a { font-size: 14px; font-weight: 600; }
+.verdict a:hover { color: inherit; opacity: .8; }
+.copied { font-size: 13px; }
+
+/* Results */
+.results { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 820px) { .results { grid-template-columns: minmax(0, 1fr); } }
+.scope { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 10px; }
+.scope svg { width: 100%; max-width: 100%; aspect-ratio: 1; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.list { display: grid; gap: 14px; min-width: 0; }
+.list h2 { margin: 0 0 6px; font-family: var(--f-display); font-weight: 600; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.list h2.hot { color: var(--red-hi); }
+.list ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.fac { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; }
+.fac.far { background: transparent; }
+.fac-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
+.ident { font-family: var(--f-mono); font-weight: 500; font-size: 15px; }
+.fname { font-family: var(--f-display); font-weight: 600; font-size: 18px; letter-spacing: .02em; line-height: 1.15; overflow-wrap: anywhere; }
+.badge { font-family: var(--f-display); font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; color: var(--on-red); background: var(--red); }
+.fac.far .badge { background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--dim); }
+.badge.closed, .fac.far .badge.closed { background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--muted); }
+.fac-meta, .fac-rwy { font-size: 13.5px; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.fac-rwy { font-family: var(--f-mono); font-size: 12.5px; }
+.fac-links { font-size: 13px; display: flex; gap: 12px; flex-wrap: wrap; }
+.dist { text-align: right; grid-row: 1 / span 4; grid-column: 2; display: grid; align-content: start; gap: 2px; }
+.dist b { font-family: var(--f-display); font-weight: 700; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--red-hi); }
+.fac.far .dist b { color: var(--ink); }
+.dist small { font-family: var(--f-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.empty { background: var(--panel); border: 1px dashed var(--line); border-radius: 8px; padding: 14px; color: var(--green-hi); font-size: 14px; margin: 0; }
+@media (max-width: 480px) {
+  .go { margin-left: 0; width: 100%; }
+  .fac { grid-template-columns: minmax(0, 1fr); }
+  .dist { grid-row: auto; grid-column: auto; text-align: left; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+}
+
+/* Footer */
+.foot { font-size: 13px; color: var(--muted); display: grid; gap: 6px; max-width: 80ch; }
+.foot p { margin: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .verdict { transition: background-color .25s ease, color .25s ease; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Landing Surface <span>Check</span></h1>
+    <div class="source" id="source">Loading FAA landing facility data…</div>
+  </header>
+
+  <form class="entry" id="form" autocomplete="off">
+    <label class="lbl" for="coords">GPS coordinates</label>
+    <textarea id="coords" rows="2" spellcheck="false">39.7392, -104.9903</textarea>
+    <p class="hint">One location per line. Decimal <code>39.7392, -104.9903</code>, degrees and minutes <code>N39 44.35 W104 59.42</code>, or DMS <code>39°44'21"N 104°59'25"W</code>. A Google Maps link works too. Put a name before a colon to label a line: <code>Site A: 39.74, -104.99</code></p>
+    <div class="controls">
+      <div class="group radius">
+        <label class="lbl" for="radius">Radius</label>
+        <input id="radius" type="number" min="0.1" max="50" step="0.1" value="2" inputmode="decimal">
+        <span class="seg" role="radiogroup" aria-label="Distance unit">
+          <label><input type="radio" name="unit" id="unit-mi" value="mi" checked>mi</label>
+          <label><input type="radio" name="unit" id="unit-nm" value="nm">NM</label>
+        </span>
+      </div>
+      <div class="group" role="group" aria-label="Facility types to count">
+        <label class="chip"><input type="checkbox" id="t-A" checked>Airports</label>
+        <label class="chip"><input type="checkbox" id="t-H" checked>Heliports</label>
+        <label class="chip"><input type="checkbox" id="t-C" checked>Seaplane bases</label>
+        <label class="chip"><input type="checkbox" id="t-O" checked>Glider, ultralight, balloon</label>
+        <label class="chip"><input type="checkbox" id="t-PR" checked>Private use</label>
+      </div>
+      <button class="go" id="go" type="submit" disabled>Check</button>
+    </div>
+  </form>
+
+  <section class="batch" id="batch" hidden>
+    <div class="batch-head">
+      <span class="lbl" id="batch-title">Locations</span>
+      <span class="hint">Select a row to see its detail below.</span>
+    </div>
+    <div class="batch-scroll">
+      <table>
+        <thead><tr><th>Location</th><th>Coordinates</th><th>Result</th><th>Closest</th></tr></thead>
+        <tbody id="batch-rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="verdict" id="verdict" aria-live="polite">
+    <p class="headline" id="word">Loading</p>
+    <p class="vline" id="vline">Loading 19,000+ FAA airports, heliports and seaplane bases.</p>
+    <div class="where" id="where"></div>
+    <p class="vsub" id="vsub"></p>
+    <div id="vnotes"></div>
+    <div class="vtools" id="vtools" hidden>
+      <span class="tag" id="example-tag" hidden>Example location</span>
+      <button type="button" class="linkbtn" id="copy">Copy result</button>
+      <a id="point-map" href="#" target="_blank" rel="noopener">Satellite view of this point</a>
+      <span class="copied" id="copied" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <section class="results" id="results" hidden>
+    <figure class="scope">
+      <svg id="plot" viewBox="-200 -200 400 400" role="img" aria-label="Plot of nearby landing facilities"></svg>
+      <figcaption class="legend" id="legend"></figcaption>
+    </figure>
+    <div class="list" id="list"></div>
+  </section>
+
+  <footer class="foot">
+    <p id="foot-data">Source: FAA National Airspace System Resources (NASR) airport data.</p>
+    <p>Distance is measured to the nearest runway or helipad when the FAA has its coordinates on file, otherwise to the facility's reference point. Only facilities registered with the FAA are included. Unregistered fields, farm strips and rooftop pads won't appear. Facilities the FAA lists as closed indefinitely are shown but don't change the verdict. Not for navigation; confirm with current charts and the terms of your waiver.</p>
+    <p>The FAA data is checked every week and updated automatically whenever the FAA publishes a new 28-day cycle.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var R_MI = 3958.7613, DEG = Math.PI / 180, MI_PER_NM = 1.150779;
+  var EXAMPLE = "39.7392, -104.9903";
+  var RED_TEXT = "Does not fall under national waiver";
+  var GREEN_TEXT = "Clear to fly under national waiver";
+  var TYPES = [
+    { name: "Airport", short: "APT", group: "A" },
+    { name: "Heliport", short: "HELI", group: "H" },
+    { name: "Seaplane base", short: "SPB", group: "C" },
+    { name: "Gliderport", short: "GLDR", group: "O" },
+    { name: "Ultralight", short: "ULTR", group: "O" },
+    { name: "Balloonport", short: "BLLN", group: "O" }
+  ];
+  var MIL = { MA: "Air Force", MN: "Navy", MR: "Army", CG: "Coast Guard" };
+  var SURF = { ASPH: "asphalt", CONC: "concrete", TURF: "turf", DIRT: "dirt", GRVL: "gravel", GRAVEL: "gravel", WATER: "water", MATS: "mats",
+    TRTD: "treated", TREATED: "treated", PEM: "part. paved", WOOD: "wood", DECK: "deck", ALUMINUM: "aluminum", ALUM: "aluminum", GRASS: "grass",
+    ROOFTOP: "rooftop", METAL: "metal", CALICHE: "caliche", SAND: "sand", PSP: "steel mat", STEEL: "steel", BRICK: "brick", SOD: "sod",
+    CORAL: "coral", SNOW: "snow", ICE: "ice" };
+  var COMPASS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+  var WEST_NOTE = "The longitude had no W or minus sign, so it was read as west (United States).";
+  var SWAP_NOTE = "The numbers looked like longitude first, so they were swapped.";
+  var ON_SITE = 0.01;
+
+  var DB = null, LATS = null, EFF = "";
+  var state = { radius: 2, unit: "mi", types: { A: true, H: true, C: true, O: true }, priv: true };
+  var queries = [], sel = 0, edited = false;
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- settings ----------
+  try {
+    var saved = JSON.parse(localStorage.getItem("lsc-settings") || "null");
+    if (saved && typeof saved === "object") {
+      if (saved.radius > 0) state.radius = saved.radius;
+      if (saved.unit === "nm" || saved.unit === "mi") state.unit = saved.unit;
+      if (saved.types) for (var k in state.types) if (k in saved.types) state.types[k] = !!saved.types[k];
+      if ("priv" in saved) state.priv = !!saved.priv;
+    }
+  } catch (e) {}
+  function saveSettings() { try { localStorage.setItem("lsc-settings", JSON.stringify(state)); } catch (e) {} }
+  $("radius").value = state.radius;
+  $("unit-" + state.unit).checked = true;
+  ["A", "H", "C", "O"].forEach(function (k) { $("t-" + k).checked = state.types[k]; });
+  $("t-PR").checked = state.priv;
+
+  // ---------- helpers ----------
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function wrapLon(d) { while (d > 180) d -= 360; while (d < -180) d += 360; return d; }
+  function hav(la1, lo1, la2, lo2) {
+    var dla = (la2 - la1) * DEG, dlo = wrapLon(lo2 - lo1) * DEG;
+    var a = Math.sin(dla / 2) * Math.sin(dla / 2) + Math.cos(la1 * DEG) * Math.cos(la2 * DEG) * Math.sin(dlo / 2) * Math.sin(dlo / 2);
+    return 2 * R_MI * Math.asin(Math.min(1, Math.sqrt(a)));
+  }
+  function radiusMi() { return state.unit === "nm" ? state.radius * MI_PER_NM : state.radius; }
+  function fmtDist(mi) {
+    var v = state.unit === "nm" ? mi / MI_PER_NM : mi;
+    return (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.round(v).toLocaleString());
+  }
+  function unitLabel() { return state.unit === "nm" ? "NM" : "mi"; }
+  function fmtRadius() { return (+state.radius).toString() + " " + unitLabel(); }
+  function compass(b) { return COMPASS[Math.round(b / 22.5) % 16]; }
+  function pad3(n) { n = Math.round(n) % 360; return ("00" + n).slice(-3); }
+  function fmtDec(lat, lon) {
+    return Math.abs(lat).toFixed(5) + "° " + (lat < 0 ? "S" : "N") + ", " + Math.abs(lon).toFixed(5) + "° " + (lon < 0 ? "W" : "E");
+  }
+  function fmtDDM(lat, lon) {
+    function one(v, pos, neg, w) {
+      var a = Math.abs(v), d = Math.floor(a), m = (a - d) * 60;
+      if (+m.toFixed(3) >= 60) { d += 1; m = 0; }
+      return (v < 0 ? neg : pos) + ("000" + d).slice(-w) + "°" + (m < 10 ? "0" : "") + m.toFixed(3) + "′";
+    }
+    return one(lat, "N", "S", 2) + " " + one(lon, "E", "W", 3);
+  }
+  function plain(lat, lon) { return lat.toFixed(5) + ", " + lon.toFixed(5); }
+  function satUrl(lat, lon) { return "https://www.google.com/maps/@?api=1&map_action=map&center=" + lat.toFixed(6) + "%2C" + lon.toFixed(6) + "&zoom=16&basemap=satellite"; }
+  function titleCity(s) { return s.toLowerCase().replace(/\b([a-z])/g, function (m) { return m.toUpperCase(); }); }
+  function surfName(code) {
+    if (!code) return "";
+    return code.split(/[-\/]/).map(function (p) { return SURF[p] || p.toLowerCase(); }).filter(Boolean)
+      .filter(function (v, i, a) { return a.indexOf(v) === i; }).join("/").replace("roof/top", "rooftop");
+  }
+
+  // ---------- coordinate parsing ----------
+  function isNum(s) { return /^[-+]?\d+(\.\d+)?$/.test(s.trim()); }
+
+  function parseLine(raw, lineNo) {
+    var line = raw.trim(), label = "";
+    if (!line) return null;
+    var q = { raw: raw, label: "", lineNo: lineNo, notes: [], parseNotes: [] };
+    var m = line.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/) ||
+            line.match(/[?&](?:q|query|ll|center|destination)=(-?\d+(?:\.\d+)?)(?:,|%2C)\s*(-?\d+(?:\.\d+)?)/i);
+    if (m) { q.lat = +m[1]; q.lon = +m[2]; q.lonExplicit = true; q.fixedOrder = true; return validate(q); }
+    var fields = line.split(/\t|,/).map(function (s) { return s.trim(); });
+    if (fields.length >= 3 && isNum(fields[fields.length - 2]) && isNum(fields[fields.length - 1])) {
+      label = fields.slice(0, -2).join(", ");
+      line = fields[fields.length - 2] + ", " + fields[fields.length - 1];
+    } else {
+      var ci = line.lastIndexOf(":");
+      if (ci > 0 && /[A-Za-z]{2,}/.test(line.slice(0, ci))) { label = line.slice(0, ci).trim(); line = line.slice(ci + 1); }
+    }
+    q.label = label.replace(/^["']|["']$/g, "");
+    var p = parseCoordText(line);
+    if (p.error) { q.error = p.error; return q; }
+    q.lat = p.lat; q.lon = p.lon; q.lonExplicit = p.lonExplicit; q.latSigned = p.latSigned;
+    q.fixedOrder = p.hemi || p.swapped;
+    if (p.swapped) q.parseNotes.push(SWAP_NOTE);
+    return validate(q);
+  }
+
+  function validate(q) {
+    if (!isFinite(q.lat) || !isFinite(q.lon)) { q.error = "Couldn't read a latitude and longitude on this line."; return q; }
+    if (Math.abs(q.lat) > 90) { q.error = "Latitude " + q.lat + " is out of range. It must be between −90 and 90."; return q; }
+    if (Math.abs(q.lon) > 180) { q.error = "Longitude " + q.lon + " is out of range. It must be between −180 and 180."; return q; }
+    return q;
+  }
+
+  function parseCoordText(s) {
+    s = s.toUpperCase()
+      .replace(/''/g, '"')
+      .replace(/[°º˚]/g, " ° ").replace(/[′’‘´`]/g, " ' ").replace(/[″”“]/g, ' " ')
+      .replace(/−/g, "-")
+      .replace(/\bDEG(REES?)?\b/g, " ° ")
+      .replace(/\b(LATITUDE|LAT|LONGITUDE|LONG|LON|LNG)\b\s*[:=]?/g, " ")
+      .replace(/\bNORTH\b/g, " N ").replace(/\bSOUTH\b/g, " S ").replace(/\bEAST\b/g, " E ").replace(/\bWEST\b/g, " W ");
+    var re = /(?<![A-Z])([NSEW])(?![A-Z])|([-+]?\d+(?:\.\d+)?)|([°'"])|([,;\/])/g, t, toks = [], rest;
+    while ((t = re.exec(s))) {
+      if (t[1]) toks.push({ k: "h", v: t[1] });
+      else if (t[2] !== undefined) toks.push({ k: "n", v: t[2] });
+      else if (t[3]) toks.push({ k: "u", v: t[3] });
+      else toks.push({ k: "s" });
+    }
+    rest = s.replace(re, " ");
+    if (/[A-Z0-9]/.test(rest)) return { error: "Couldn't read “" + rest.trim().split(/\s+/)[0] + "”. Use numbers with N/S/E/W or a minus sign." };
+    var hemis = toks.filter(function (x) { return x.k === "h"; });
+    var nums = toks.filter(function (x) { return x.k === "n"; });
+    if (nums.length < 2) return { error: "Need both a latitude and a longitude." };
+    var groups = [];
+    if (hemis.length === 2) {
+      var first = toks.filter(function (x) { return x.k !== "s"; })[0];
+      var prefix = first && first.k === "h", cur = [];
+      toks.forEach(function (x) {
+        if (x.k === "h") {
+          if (prefix) { if (cur.length) groups.push(cur); cur = [x]; }
+          else { cur.push(x); groups.push(cur); cur = []; }
+        } else if (x.k !== "s") cur.push(x);
+      });
+      if (cur.length) groups.push(cur);
+    } else if (hemis.length === 0 && toks.some(function (x) { return x.k === "s"; })) {
+      var cut = toks.findIndex(function (x) { return x.k === "s"; });
+      groups = [toks.slice(0, cut), toks.slice(cut + 1).filter(function (x) { return x.k !== "s"; })];
+    } else if (hemis.length === 0) {
+      var degIdx = [];
+      toks.forEach(function (x, i) { if (x.k === "u" && x.v === "°") degIdx.push(i); });
+      if (degIdx.length === 2) {
+        var j = degIdx[1] - 1;
+        groups = [toks.slice(0, j), toks.slice(j)];
+      } else {
+        var n = nums.length;
+        if (n % 2) return { error: "Couldn't tell where the latitude ends and the longitude starts. Add a comma between them." };
+        var half = n / 2, seen = 0, a = [], b = [];
+        toks.forEach(function (x) { if (x.k === "n") seen++; (seen <= half ? a : b).push(x); });
+        groups = [a, b];
+      }
+    } else {
+      return { error: "Found " + hemis.length + " hemisphere letter" + (hemis.length === 1 ? "" : "s") + ". Use one for latitude (N/S) and one for longitude (E/W), or none." };
+    }
+    if (groups.length !== 2) return { error: "Couldn't split this into a latitude and a longitude." };
+    var parts = [];
+    for (var g = 0; g < 2; g++) {
+      var ns = groups[g].filter(function (x) { return x.k === "n"; }).map(function (x) { return x.v; });
+      var h = groups[g].filter(function (x) { return x.k === "h"; })[0];
+      if (ns.length < 1 || ns.length > 3) return { error: "Each coordinate needs 1 to 3 numbers (degrees, minutes, seconds)." };
+      var neg = ns[0].charAt(0) === "-";
+      var d = Math.abs(parseFloat(ns[0])), mm = ns[1] ? parseFloat(ns[1]) : 0, ss = ns[2] ? parseFloat(ns[2]) : 0;
+      if (mm >= 60 || ss >= 60) return { error: "Minutes and seconds must be under 60." };
+      if ((ns[1] && ns[0].indexOf(".") >= 0) || (ns[2] && ns[1].indexOf(".") >= 0)) return { error: "Only the last number in degrees-minutes-seconds can have decimals." };
+      var v = d + mm / 60 + ss / 3600;
+      var hv = h ? h.v : null;
+      if (hv === "S" || hv === "W" || neg) v = -v;
+      parts.push({ v: v, h: hv, signed: neg || ns[0].charAt(0) === "+" });
+    }
+    var lat, lon, swapped = false, lonPart, latPart;
+    if (parts[0].h === "E" || parts[0].h === "W" || parts[1].h === "N" || parts[1].h === "S") {
+      lat = parts[1].v; lon = parts[0].v; lonPart = parts[0]; latPart = parts[1];
+    } else {
+      lat = parts[0].v; lon = parts[1].v; lonPart = parts[1]; latPart = parts[0];
+      if (!parts[0].h && Math.abs(lat) > 90 && Math.abs(lon) <= 90) { var tmp = lat; lat = lon; lon = tmp; lonPart = parts[0]; latPart = parts[1]; swapped = true; }
+    }
+    return { lat: lat, lon: lon, lonExplicit: !!lonPart.h || lonPart.signed, latSigned: !!latPart.h || latPart.signed, hemi: hemis.length > 0, swapped: swapped };
+  }
+
+  // ---------- search ----------
+  function lowerBound(x) { var lo = 0, hi = LATS.length; while (lo < hi) { var mid = (lo + hi) >> 1; if (LATS[mid] < x) lo = mid + 1; else hi = mid; } return lo; }
+  function passes(r) {
+    var g = TYPES[r[2]] ? TYPES[r[2]].group : "A";
+    if (!state.types[g]) return false;
+    if (!state.priv && r[5] === "PR") return false;
+    return true;
+  }
+  function candidates(lat0, lon0, rMi) {
+    var padMi = rMi + 5, dLat = padMi / 69.05;
+    var lo = lowerBound(lat0 - dLat), hi = lowerBound(lat0 + dLat + 1e-9);
+    var c = Math.max(Math.cos(Math.min(89.9, Math.abs(lat0) + dLat) * DEG), 0.01);
+    var dLon = padMi / (69.17 * c), out = [];
+    for (var i = lo; i < hi; i++) {
+      if (dLon >= 180 || Math.abs(wrapLon(DB[i][9] - lon0)) <= dLon) out.push(i);
+    }
+    return out;
+  }
+  function measure(i, lat0, lon0) {
+    var r = DB[i], cosm = Math.cos(lat0 * DEG), k = DEG * R_MI;
+    function xy(la, lo) { return [wrapLon(lo - lon0) * k * cosm, (la - lat0) * k]; }
+    var a = xy(r[8], r[9]);
+    var best = { d: hav(lat0, lon0, r[8], r[9]), via: null, x: a[0], y: a[1] };
+    if (best.d < 60) {
+      r[12].forEach(function (w) {
+        var P;
+        if (w.length >= 8) {
+          var A = xy(w[4], w[5]), B = xy(w[6], w[7]);
+          var dx = B[0] - A[0], dy = B[1] - A[1], L = dx * dx + dy * dy;
+          var t = L > 0 ? Math.max(0, Math.min(1, -(A[0] * dx + A[1] * dy) / L)) : 0;
+          P = [A[0] + t * dx, A[1] + t * dy];
+        } else if (w.length >= 6) {
+          P = xy(w[4], w[5]);
+        } else return;
+        var dd = Math.sqrt(P[0] * P[0] + P[1] * P[1]);
+        if (dd < best.d) best = { d: dd, via: w[0], x: P[0], y: P[1] };
+      });
+    }
+    best.i = i;
+    best.brg = (Math.atan2(best.x, best.y) / DEG + 360) % 360;
+    return best;
+  }
+  function measured(lat0, lon0, rMi) {
+    return candidates(lat0, lon0, rMi).filter(function (i) { return passes(DB[i]); })
+      .map(function (i) { return measure(i, lat0, lon0); })
+      .sort(function (a, b) { return a.d - b.d; });
+  }
+  function nearestBeyond(lat0, lon0, minD, count) {
+    var steps = [10, 30, 80, 200, 600, 2000, 25000];
+    for (var s = 0; s < steps.length; s++) {
+      if (steps[s] <= minD) continue;
+      var list = measured(lat0, lon0, steps[s]).filter(function (m) { return m.d > minD && m.d <= steps[s]; });
+      if (list.length >= count || s === steps.length - 1) return list.slice(0, count);
+    }
+    return [];
+  }
+  function anyNearest(lat0, lon0) {
+    var steps = [50, 150, 500, 25000];
+    for (var s = 0; s < steps.length; s++) {
+      var c = candidates(lat0, lon0, steps[s]);
+      if (c.length) {
+        var best = Infinity;
+        c.forEach(function (i) { var d = hav(lat0, lon0, DB[i][8], DB[i][9]); if (d < best) best = d; });
+        if (best <= steps[s]) return best;
+      }
+    }
+    return Infinity;
+  }
+
+  function analyze(q) {
+    if (q.error) return q;
+    if (q.origLat === undefined) { q.origLat = q.lat; q.origLon = q.lon; }
+    q.lat = q.origLat; q.lon = q.origLon;
+    q.notes = q.parseNotes.slice();
+    // Missing minus signs and lon/lat order are common slips. Only reinterpret when the
+    // numbers as typed land far from every FAA facility and another reading lands near one.
+    var opts = [{ lat: q.lat, lon: q.lon, notes: [] }];
+    if (!q.lonExplicit && q.lon > 0) opts.push({ lat: q.lat, lon: -q.lon, notes: [WEST_NOTE] });
+    if (!q.fixedOrder && Math.abs(q.lon) <= 90) {
+      opts.push({ lat: q.lon, lon: q.lat, notes: [SWAP_NOTE] });
+      if (!q.latSigned && q.lat > 0) opts.push({ lat: q.lon, lon: -q.lat, notes: [SWAP_NOTE, WEST_NOTE] });
+    }
+    if (opts.length > 1 && anyNearest(q.lat, q.lon) > 150) {
+      for (var o = 1; o < opts.length; o++) {
+        if (anyNearest(opts[o].lat, opts[o].lon) <= 150) { q.lat = opts[o].lat; q.lon = opts[o].lon; q.notes = q.notes.concat(opts[o].notes); break; }
+      }
+    }
+    var rMi = radiusMi();
+    var all = measured(q.lat, q.lon, rMi);
+    var inside = all.filter(function (m) { return m.d <= rMi; });
+    q.open = inside.filter(function (m) { return !DB[m.i][7]; });
+    q.closed = inside.filter(function (m) { return DB[m.i][7]; });
+    q.beyond = nearestBeyond(q.lat, q.lon, rMi, 3);
+    q.yes = q.open.length > 0;
+    q.closest = q.open[0] || q.beyond.filter(function (m) { return !DB[m.i][7]; })[0] || q.beyond[0] || null;
+    if (!inside.length && (!q.beyond.length || q.beyond[0].d > 150)) q.notes.push("This point is far from any FAA-listed facility. Check that the coordinates are right.");
+    return q;
+  }
+
+  // ---------- rendering ----------
+  function facName(r) { return r[1]; }
+  function distDir(m) { return m.d < ON_SITE ? "on site" : fmtDist(m.d) + " " + unitLabel() + " " + compass(m.brg); }
+  function facLine(m) {
+    var r = DB[m.i];
+    return r[0] + " " + facName(r) + " (" + TYPES[r[2]].name.toLowerCase() + ", " + (r[5] === "PR" ? "private" : "public") + (r[7] ? ", closed indefinitely" : "") + ") " + distDir(m);
+  }
+  function viaText(m) {
+    var pad = m.via && /^H\d/.test(m.via);
+    if (m.d < ON_SITE) return m.via ? (pad ? "on pad " : "on rwy ") + m.via : "at reference point";
+    if (!m.via) return "to reference point";
+    return (pad ? "to pad " : "to rwy ") + m.via;
+  }
+  function rwyText(r) {
+    var ws = r[12].filter(function (w) { return w[1] > 0 || w.length > 4; });
+    if (!ws.length) return "";
+    var parts = ws.slice(0, 3).map(function (w) {
+      var dims = w[1] ? w[1].toLocaleString() + (w[2] ? "×" + w[2] : "") + " ft" : "";
+      return [w[0], dims, surfName(w[3])].filter(Boolean).join(" ");
+    });
+    if (ws.length > 3) parts.push("+" + (ws.length - 3) + " more");
+    return parts.join(" · ");
+  }
+  function facItem(m, far) {
+    var r = DB[m.i], t = TYPES[r[2]] || TYPES[0];
+    var meta = [t.name, r[5] === "PR" ? "Private use" : "Public use"];
+    if (MIL[r[6]]) meta.push(MIL[r[6]]);
+    meta.push(titleCity(r[3]) + ", " + r[4]);
+    if (r[10] !== null) meta.push(r[10].toLocaleString() + " ft elev");
+    var badges = '<span class="badge' + (r[7] ? " closed" : "") + '">' + t.short + "</span>";
+    if (r[7]) badges += ' <span class="badge closed">Closed</span>';
+    var rw = rwyText(r);
+    return '<li class="fac' + (far || r[7] ? " far" : "") + '">' +
+      '<div class="fac-head">' + badges + ' <span class="ident">' + esc(r[0]) + (r[11] && r[11] !== r[0] ? " / " + esc(r[11]) : "") + '</span><span class="fname">' + esc(facName(r)) + "</span></div>" +
+      '<div class="fac-meta">' + esc(meta.join(" · ")) + (r[7] ? " · Listed as closed indefinitely" : "") + "</div>" +
+      (rw ? '<div class="fac-rwy">' + esc(rw) + "</div>" : "") +
+      '<div class="fac-links"><a href="' + satUrl(r[8], r[9]) + '" target="_blank" rel="noopener">Satellite view</a></div>' +
+      '<div class="dist"><b>' + fmtDist(m.d) + '</b><small>' + unitLabel() + (m.d < ON_SITE ? "" : " " + compass(m.brg) + " " + pad3(m.brg) + "°T") + "</small><small>" + esc(viaText(m)) + "</small></div>" +
+      "</li>";
+  }
+
+  function renderVerdict(q) {
+    var v = $("verdict");
+    $("vtools").hidden = true;
+    $("results").hidden = true;
+    $("vnotes").innerHTML = "";
+    if (!q) { v.dataset.state = ""; $("word").textContent = "Enter coordinates"; $("vline").textContent = "Type or paste GPS coordinates above and press Check."; $("where").innerHTML = ""; $("vsub").textContent = ""; return; }
+    if (q.error) {
+      v.dataset.state = "err";
+      $("word").textContent = "Check the coordinates";
+      $("vline").textContent = q.error;
+      $("where").innerHTML = "<span>" + esc(q.raw.trim()) + "</span>";
+      $("vsub").textContent = "Accepted: decimal degrees, degrees and minutes, or degrees-minutes-seconds.";
+      return;
+    }
+    var n = q.open.length, R = fmtRadius();
+    v.dataset.state = q.yes ? "red" : "green";
+    $("word").textContent = q.yes ? RED_TEXT : GREEN_TEXT;
+    $("vline").textContent = q.yes
+      ? n + " landing " + (n === 1 ? "surface" : "surfaces") + " within " + R + "."
+      : "No landing surfaces within " + R + ".";
+    $("where").innerHTML = (q.label ? "<span>" + esc(q.label) + "</span>" : "") + "<span>" + fmtDec(q.lat, q.lon) + "</span><span>" + fmtDDM(q.lat, q.lon) + "</span>";
+    var sub = [];
+    if (q.closest) {
+      var r = DB[q.closest.i];
+      sub.push("Closest: " + r[0] + " " + facName(r) + ", " + (q.closest.d < ON_SITE ? "this point is " + viaText(q.closest) : distDir(q.closest)) + ".");
+    }
+    if (q.closed.length) sub.push(q.closed.length + " more within " + R + " " + (q.closed.length === 1 ? "is" : "are") + " listed as closed indefinitely.");
+    var off = [];
+    if (!state.types.A) off.push("airports"); if (!state.types.H) off.push("heliports"); if (!state.types.C) off.push("seaplane bases");
+    if (!state.types.O) off.push("glider, ultralight and balloon sites"); if (!state.priv) off.push("private-use sites");
+    if (off.length) sub.push("Not counting " + off.join(", ") + ".");
+    $("vsub").textContent = sub.join(" ");
+    $("vnotes").innerHTML = q.notes.map(function (nt) { return '<p class="note">' + esc(nt) + "</p>"; }).join("");
+    $("vtools").hidden = false;
+    $("example-tag").hidden = edited || $("coords").value.trim() !== EXAMPLE;
+    $("point-map").href = satUrl(q.lat, q.lon);
+    $("copied").textContent = "";
+  }
+
+  function renderList(q) {
+    var R = fmtRadius(), html = "";
+    var inside = q.open.concat(q.closed).sort(function (a, b) { return a.d - b.d; });
+    html += '<div><h2' + (q.yes ? ' class="hot"' : "") + ">Within " + esc(R) + " (" + inside.length + ")</h2>";
+    html += inside.length ? "<ol>" + inside.map(function (m) { return facItem(m, false); }).join("") + "</ol>"
+      : '<p class="empty">No FAA-listed airport, heliport or seaplane base' + (state.priv ? "" : " open to the public") + " within " + esc(R) + " of this point.</p>";
+    html += "</div>";
+    if (q.beyond.length) html += "<div><h2>Nearest beyond " + esc(R) + "</h2><ol>" + q.beyond.map(function (m) { return facItem(m, true); }).join("") + "</ol></div>";
+    $("list").innerHTML = html;
+  }
+
+  function sym(r, x, y, color) {
+    var t = r[2];
+    if (t === 1) return '<circle cx="' + x + '" cy="' + y + '" r="6.5" fill="var(--panel)" stroke="' + color + '" stroke-width="1.8"/><text x="' + x + '" y="' + (y + 3.4) + '" text-anchor="middle" font-family="var(--f-display)" font-weight="700" font-size="9.5" fill="' + color + '">H</text>';
+    if (t === 2) return '<circle cx="' + x + '" cy="' + y + '" r="6" fill="var(--panel)" stroke="' + color + '" stroke-width="1.8"/><path d="M' + (x - 3.5) + " " + (y + 0.5) + " q1.75 -2.2 3.5 0 t3.5 0" + '" fill="none" stroke="' + color + '" stroke-width="1.5"/>';
+    if (t >= 3) return '<rect x="' + (x - 4) + '" y="' + (y - 4) + '" width="8" height="8" transform="rotate(45 ' + x + " " + y + ')" fill="var(--panel)" stroke="' + color + '" stroke-width="1.8"/>';
+    return '<circle cx="' + x + '" cy="' + y + '" r="5" fill="var(--panel)" stroke="' + color + '" stroke-width="2"/>';
+  }
+
+  function renderPlot(q) {
+    var rMi = radiusMi();
+    var ext = rMi * 1.3;
+    var nearest = q.open[0] || q.closed[0] || q.beyond[0];
+    if (!q.open.length && !q.closed.length && q.beyond[0]) ext = Math.min(Math.max(ext, q.beyond[0].d * 1.12), 60);
+    var s = 180 / ext;
+    var items = measured(q.lat, q.lon, ext).filter(function (m) { return m.d <= ext * 1.05; }).slice(0, 400);
+    var cosm = Math.cos(q.lat * DEG), k = DEG * R_MI;
+    function P(la, lo) { return [wrapLon(lo - q.lon) * k * cosm * s, -(la - q.lat) * k * s]; }
+    function colorOf(m) { return (m.d <= rMi && !DB[m.i][7]) ? "var(--red-hi)" : "var(--dim)"; }
+    var ringColor = q.yes ? "var(--red-hi)" : "var(--green)";
+    var out = [];
+    out.push('<rect x="-200" y="-200" width="400" height="400" fill="var(--panel)"/>');
+    if (!q.yes) out.push('<circle cx="0" cy="0" r="' + (rMi * s) + '" fill="var(--green)" fill-opacity=".08"/>');
+    else out.push('<circle cx="0" cy="0" r="' + (rMi * s) + '" fill="var(--red)" fill-opacity=".12"/>');
+    out.push('<line x1="-196" y1="0" x2="196" y2="0" stroke="var(--line)" stroke-width="1"/><line x1="0" y1="-196" x2="0" y2="196" stroke="var(--line)" stroke-width="1"/>');
+    var rr = rMi * s;
+    out.push('<circle cx="0" cy="0" r="' + (rr / 2) + '" fill="none" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 4"/>');
+    out.push('<circle cx="0" cy="0" r="' + rr + '" fill="none" stroke="' + ringColor + '" stroke-width="2"/>');
+    var lx = rr * Math.cos(-Math.PI / 4), ly = rr * Math.sin(-Math.PI / 4);
+    out.push('<text x="' + (lx + 4) + '" y="' + (ly - 4) + '" font-family="var(--f-mono)" font-size="11" fill="' + ringColor + '" paint-order="stroke" stroke="var(--panel)" stroke-width="3">' + esc(fmtRadius()) + "</text>");
+    [["N", 0, -186], ["E", 188, 4], ["S", 0, 196], ["W", -188, 4]].forEach(function (c) {
+      out.push('<text x="' + c[1] + '" y="' + c[2] + '" text-anchor="middle" font-family="var(--f-display)" font-weight="700" font-size="13" fill="var(--muted)">' + c[0] + "</text>");
+    });
+    // runways first, then symbols, then labels
+    var labels = [];
+    items.forEach(function (m) {
+      var r = DB[m.i], color = colorOf(m);
+      r[12].forEach(function (w) {
+        if (w.length >= 8) {
+          var a = P(w[4], w[5]), b = P(w[6], w[7]);
+          var wpx = Math.max(2.2, Math.min(9, (w[2] || 60) / 5280 * s));
+          out.push('<line x1="' + a[0].toFixed(1) + '" y1="' + a[1].toFixed(1) + '" x2="' + b[0].toFixed(1) + '" y2="' + b[1].toFixed(1) + '" stroke="' + color + '" stroke-width="' + wpx.toFixed(1) + '" stroke-linecap="butt"/>');
+        }
+      });
+    });
+    if (nearest) {
+      var nx = nearest.x * s, ny = -nearest.y * s, nd = Math.sqrt(nx * nx + ny * ny);
+      if (nd > 192) { nx = nx / nd * 192; ny = ny / nd * 192; }
+      out.push('<line x1="0" y1="0" x2="' + nx.toFixed(1) + '" y2="' + ny.toFixed(1) + '" stroke="var(--ink)" stroke-width="1.2" stroke-dasharray="2 3"/>');
+    }
+    items.forEach(function (m) {
+      var r = DB[m.i], color = colorOf(m);
+      var hasRwy = r[12].some(function (w) { return w.length >= 8; });
+      var p = P(r[8], r[9]);
+      if (hasRwy && r[2] === 0) out.push('<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="2.4" fill="' + color + '"/>');
+      else out.push(sym(r, +p[0].toFixed(1), +p[1].toFixed(1), color));
+      if ((m.d <= rMi || (nearest && m.i === nearest.i)) && labels.length < 14) labels.push([p[0], p[1], r[0]]);
+    });
+    // Place each ID label at the first corner around its symbol that doesn't collide with one already placed.
+    var boxes = [[-10, -10, 10, 10]];
+    labels.forEach(function (l) {
+      var w = l[2].length * 6.8 + 2, h = 11, spot = null;
+      var tries = [[9, -7, "start"], [9, 15, "start"], [-9, -7, "end"], [-9, 15, "end"], [9, -19, "start"], [-9, 27, "end"]];
+      for (var t = 0; t < tries.length && !spot; t++) {
+        var tx = l[0] + tries[t][0], ty = l[1] + tries[t][1];
+        var x0 = tries[t][2] === "end" ? tx - w : tx, b = [x0, ty - h + 2, x0 + w, ty + 2];
+        var hit = boxes.some(function (o) { return b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]; });
+        if (!hit || t === tries.length - 1) { spot = [tx, ty, tries[t][2]]; boxes.push(b); }
+      }
+      out.push('<text x="' + spot[0].toFixed(1) + '" y="' + spot[1].toFixed(1) + '" text-anchor="' + spot[2] + '" font-family="var(--f-mono)" font-weight="500" font-size="11" fill="var(--ink)" paint-order="stroke" stroke="var(--panel)" stroke-width="3.5" stroke-linejoin="round">' + esc(l[2]) + "</text>");
+    });
+    if (nearest && nearest.d > ext) {
+      var b = nearest.brg * DEG, ax = Math.sin(b) * 178, ay = -Math.cos(b) * 178;
+      out.push('<g transform="translate(' + ax.toFixed(1) + " " + ay.toFixed(1) + ") rotate(" + nearest.brg.toFixed(1) + ')"><path d="M0 -9 L6 4 L-6 4 Z" fill="var(--ink)"/></g>');
+      var tx2 = Math.max(-170, Math.min(170, Math.sin(b) * 150)), ty2 = Math.max(-165, Math.min(175, -Math.cos(b) * 150));
+      out.push('<text x="' + tx2.toFixed(1) + '" y="' + ty2.toFixed(1) + '" text-anchor="middle" font-family="var(--f-mono)" font-size="11" fill="var(--ink)" paint-order="stroke" stroke="var(--panel)" stroke-width="3.5">' + esc(DB[nearest.i][0]) + " " + fmtDist(nearest.d) + " " + unitLabel() + "</text>");
+    }
+    out.push('<g stroke="var(--ink)" stroke-width="2"><line x1="-9" y1="0" x2="-3" y2="0"/><line x1="3" y1="0" x2="9" y2="0"/><line x1="0" y1="-9" x2="0" y2="-3"/><line x1="0" y1="3" x2="0" y2="9"/></g><circle cx="0" cy="0" r="1.8" fill="var(--ink)"/>');
+    $("plot").innerHTML = out.join("");
+    $("plot").setAttribute("aria-label", "Plot centered on the entered point, " + fmtRadius() + " ring, showing " + items.length + " nearby facilities. North is up.");
+    var span = ext * 2;
+    $("legend").innerHTML = '<span><i style="background:var(--red-hi)"></i>Within ' + esc(fmtRadius()) + '</span><span><i style="background:var(--dim)"></i>Outside or closed</span>' +
+      "<span>Plot width " + fmtDist(span) + " " + unitLabel() + ", true north up</span>";
+  }
+
+  function renderBatch() {
+    var box = $("batch");
+    if (queries.length < 2) { box.hidden = true; return; }
+    box.hidden = false;
+    var clear = queries.filter(function (q) { return !q.error && !q.yes; }).length;
+    $("batch-title").textContent = queries.length + " locations · " + clear + " clear to fly under national waiver";
+    $("batch-rows").innerHTML = queries.map(function (q, i) {
+      var name = esc(q.label || "Line " + q.lineNo);
+      if (q.error) return '<tr data-i="' + i + '" aria-selected="' + (i === sel) + '" tabindex="0"><td>' + name + '</td><td class="coord">' + esc(q.raw.trim().slice(0, 40)) + '</td><td><span class="pill err">Check input</span></td><td>' + esc(q.error) + "</td></tr>";
+      var c = q.closest ? DB[q.closest.i][0] + " · " + distDir(q.closest) : "None found";
+      if (q.yes) c = q.open.length + " within " + fmtRadius() + " · closest " + c;
+      return '<tr data-i="' + i + '" aria-selected="' + (i === sel) + '" tabindex="0"><td>' + name + '</td><td class="coord">' + plain(q.lat, q.lon) + "</td><td>" +
+        (q.yes ? '<span class="pill red">Not under waiver</span>' : '<span class="pill green">Clear to fly</span>') + '</td><td class="num">' + esc(c) + "</td></tr>";
+    }).join("");
+  }
+
+  function renderSelected() {
+    var q = queries[sel];
+    renderVerdict(q || null);
+    if (q && !q.error) { renderPlot(q); renderList(q); $("results").hidden = false; }
+  }
+
+  function run(fromInput) {
+    if (!DB) return;
+    var lines = $("coords").value.split(/\r?\n/);
+    var parsed = [];
+    lines.forEach(function (l, i) { var q = parseLine(l, i + 1); if (q) parsed.push(q); });
+    queries = parsed.map(analyze);
+    if (fromInput || sel >= queries.length) sel = 0;
+    renderBatch();
+    renderSelected();
+  }
+  function rerun() { queries.forEach(analyze); renderBatch(); renderSelected(); }
+
+  function summaryText() {
+    var head = "Landing surface check · radius " + fmtRadius() + " · FAA data effective " + EFF;
+    var body = queries.map(function (q) {
+      var name = q.label ? q.label + ": " : "";
+      if (q.error) return name + q.raw.trim() + " → could not read (" + q.error + ")";
+      var t = name + plain(q.lat, q.lon) + " → " + (q.yes
+        ? RED_TEXT.toUpperCase() + " (" + q.open.length + " landing " + (q.open.length === 1 ? "surface" : "surfaces") + " within " + fmtRadius() + ")"
+        : GREEN_TEXT.toUpperCase() + " (no landing surfaces within " + fmtRadius() + ")");
+      var rows = q.open.slice(0, 8).map(function (m) { return "  - " + facLine(m); });
+      if (!q.yes && q.closest) rows.push("  closest: " + facLine(q.closest));
+      return [t].concat(rows).join("\n");
+    });
+    return [head].concat(body).join("\n");
+  }
+
+  // ---------- events ----------
+  $("form").addEventListener("submit", function (e) { e.preventDefault(); run(true); });
+  $("coords").addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run(true); } });
+  $("coords").addEventListener("input", function () { edited = true; });
+  $("radius").addEventListener("input", function () {
+    var v = parseFloat(this.value);
+    if (v > 0 && v <= 500) { state.radius = v; saveSettings(); if (queries.length) rerun(); }
+  });
+  document.querySelectorAll('input[name="unit"]').forEach(function (el) {
+    el.addEventListener("change", function () { state.unit = this.value; saveSettings(); if (queries.length) rerun(); });
+  });
+  ["A", "H", "C", "O"].forEach(function (k) {
+    $("t-" + k).addEventListener("change", function () { state.types[k] = this.checked; saveSettings(); if (queries.length) rerun(); });
+  });
+  $("t-PR").addEventListener("change", function () { state.priv = this.checked; saveSettings(); if (queries.length) rerun(); });
+  function pickRow(tr) { if (!tr) return; sel = +tr.dataset.i; renderBatch(); renderSelected(); }
+  $("batch-rows").addEventListener("click", function (e) { pickRow(e.target.closest("tr")); });
+  $("batch-rows").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickRow(e.target.closest("tr")); } });
+  $("copy").addEventListener("click", function () {
+    var txt = summaryText();
+    function fallback() {
+      var ta = document.createElement("textarea"); ta.value = txt; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(ta);
+      $("copied").textContent = ok ? "Copied." : "Copy isn't available here. Select the result text instead.";
+    }
+    try {
+      navigator.clipboard.writeText(txt).then(function () { $("copied").textContent = "Copied."; }, fallback);
+    } catch (e) { fallback(); }
+  });
+
+  // ---------- load ----------
+  fetch("facilities.json").then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (d) {
+    DB = d.f; EFF = d.eff;
+    LATS = new Float64Array(DB.length);
+    for (var i = 0; i < DB.length; i++) LATS[i] = DB[i][8];
+    var dt = new Date(EFF + "T12:00:00Z");
+    var effTxt = dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+    $("source").textContent = DB.length.toLocaleString() + " FAA facilities · data effective " + effTxt;
+    $("foot-data").textContent = "Source: FAA National Airspace System Resources (NASR) 28-day airport data, effective " + effTxt +
+      ". Covers all 50 states and U.S. territories: " + DB.length.toLocaleString() + " airports, heliports, seaplane bases, gliderports, ultralight parks and balloonports, public and private. Permanently closed sites are excluded.";
+    $("go").disabled = false;
+    run(true);
+  }).catch(function () {
+    $("verdict").dataset.state = "err";
+    $("word").textContent = "Data didn't load";
+    $("vline").textContent = "The FAA facility list didn't load.";
+    $("vsub").textContent = "Reload the page to try again.";
+    $("source").textContent = "FAA data not loaded";
+  });
+})();
+</script>
+</body>
+</html>

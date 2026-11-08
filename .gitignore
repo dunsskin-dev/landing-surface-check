@@ -1,0 +1,6 @@
+__pycache__/
+*.tmp
+_site/
+update.log
+# Source of the older claude.ai-hosted copy; the site itself is index.html.
+landing-surface-check.html
