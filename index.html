@@ -97,6 +97,13 @@ textarea:focus-visible, input:focus-visible, button:focus-visible, a:focus-visib
 .nf-field.wide { grid-column: span 2; }
 .nf-field input, .nf-field select { width: 100%; min-width: 0; font-family: var(--f-mono); font-size: 16px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); }
 .nf-field select { min-height: 41px; }
+.lbl-row { display: flex; align-items: center; gap: 8px; }
+.help-btn { width: 26px; height: 26px; flex: none; border-radius: 50%; border: 1px solid var(--muted); background: none; color: var(--ink); font-family: var(--f-display); font-weight: 700; font-size: 15px; line-height: 1; padding: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.help-btn:hover, .help-btn[aria-expanded="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.rid-help { grid-column: 1 / -1; background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; font-size: 14px; display: grid; gap: 6px; justify-items: start; }
+.rid-help p { margin: 0; }
+.rid-help ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+@media (min-width: 641px) { .nf-rid { grid-column: 3; } }
 select:focus-visible { outline: 2px solid var(--green-hi); outline-offset: 2px; }
 .nf-field input[readonly] { background: transparent; border-style: dashed; }
 .nf-msgs { display: grid; gap: 4px; }
@@ -261,6 +268,20 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
       <label class="nf-field full-sm"><span class="lbl">Pilot name</span><input id="nf-pname" type="text" autocomplete="name" autocapitalize="words" spellcheck="false"></label>
       <label class="nf-field full-sm"><span class="lbl">Pilot phone</span><input id="nf-pphone" type="tel" autocomplete="tel" inputmode="tel"></label>
       <label class="nf-field full-sm"><span class="lbl">Pilot email</span><input id="nf-pemail" type="email" autocomplete="email" autocapitalize="off" spellcheck="false"></label>
+      <div class="nf-field full-sm nf-rid">
+        <span class="lbl-row"><label class="lbl" for="nf-rid">Remote ID</label><button type="button" class="help-btn" id="rid-help-btn" aria-expanded="false" aria-controls="rid-help" aria-label="How to find your Remote ID">?</button></span>
+        <input id="nf-rid" type="text" placeholder="Remote ID serial number" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      </div>
+      <div class="rid-help" id="rid-help" hidden>
+        <p><strong>Find your Remote ID in the DJI Fly app</strong> (Mavic, Mini, Air series)</p>
+        <ol>
+          <li>Power on your drone and remote controller, and connect to the <a href="https://www.dji.com/downloads/djiapp/dji-fly" target="_blank" rel="noopener">DJI Fly</a> app.</li>
+          <li>Tap the three dots (...) in the top-right corner of the screen.</li>
+          <li>Select the Safety tab (shield icon).</li>
+          <li>Scroll down and tap UAS Remote Identification or the Remote ID menu to view your unique Remote ID serial number.</li>
+        </ol>
+        <button type="button" class="linkbtn" id="rid-help-close">Close</button>
+      </div>
     </div>
     <div class="nf-msgs" id="nf-msgs" aria-live="polite"></div>
     <pre class="nf-preview" id="nf-preview" aria-label="Notification text"></pre>
@@ -270,7 +291,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
       <button type="button" class="btn" id="nf-copy">Copy</button>
       <span class="copied" id="nf-copied" aria-live="polite"></span>
     </div>
-    <p class="nf-contact">Schedule by text to <a href="sms:+19132191370">913.219.1370</a> or email <a href="mailto:airopsinc@outlook.com">airopsinc@outlook.com</a>. Responsible person, who must be reachable for the whole flight: Michael den Hartog, <a href="tel:+16692476776,1">(669) 247-6776 ext. 1</a>. COA effective 9/30/2025 to 9/29/2027. Your pilot name, phone and email are saved only on this device and filled in next time.</p>
+    <p class="nf-contact">Schedule by text to <a href="sms:+19132191370">913.219.1370</a> or email <a href="mailto:airopsinc@outlook.com">airopsinc@outlook.com</a>. Responsible person, who must be reachable for the whole flight: Michael den Hartog, <a href="tel:+16692476776,1">(669) 247-6776 ext. 1</a>. COA effective 9/30/2025 to 9/29/2027. Your pilot name, phone, email and Remote ID are saved only on this device and filled in next time.</p>
   </section>
 
   <section class="batch" id="batch" hidden>
@@ -847,12 +868,12 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     }
     return t;
   }
-  function nfPilot() { return { name: $("nf-pname").value.trim(), phone: $("nf-pphone").value.trim(), email: $("nf-pemail").value.trim() }; }
+  function nfPilot() { return { name: $("nf-pname").value.trim(), phone: $("nf-pphone").value.trim(), email: $("nf-pemail").value.trim(), rid: $("nf-rid").value.trim() }; }
   function nfSavePilot() { try { localStorage.setItem("lsc-pilot", JSON.stringify(nfPilot())); } catch (err) {} }
   function nfLoadPilot() {
     try {
       var p = JSON.parse(localStorage.getItem("lsc-pilot") || "null");
-      if (p && typeof p === "object") { $("nf-pname").value = p.name || ""; $("nf-pphone").value = p.phone || ""; $("nf-pemail").value = p.email || ""; }
+      if (p && typeof p === "object") { $("nf-pname").value = p.name || ""; $("nf-pphone").value = p.phone || ""; $("nf-pemail").value = p.email || ""; $("nf-rid").value = p.rid || ""; }
     } catch (err) {}
   }
   function nfCheckLine() {
@@ -875,6 +896,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
       "Pilot: " + (p.name || none),
       "Pilot phone: " + (p.phone || none),
       "Pilot email: " + (p.email || none),
+      "Remote ID: " + (p.rid || none),
       nfCheckLine()
     ].filter(Boolean).join("\n");
   }
@@ -898,6 +920,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     if (!p.name) missing.push("pilot name");
     if (!p.phone) missing.push("pilot phone");
     if (!p.email) missing.push("pilot email");
+    if (!p.rid) missing.push("Remote ID");
     if (missing.length) msgs.push(["", "Still needed: " + missing.join(", ") + "."]);
     $("nf-msgs").innerHTML = msgs.map(function (m) { return '<p class="nf-msg ' + m[0] + '">' + esc(m[1]) + "</p>"; }).join("");
     var text = nfText();
@@ -909,8 +932,11 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     $("nf-email").href = "mailto:" + OPS_EMAIL + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(text.replace(/\n/g, "\r\n"));
     $("nf-copied").textContent = "";
   }
-  ["nf-site", "nf-date", "nf-start", "nf-dur", "nf-pname", "nf-pphone", "nf-pemail"].forEach(function (id) { $(id).addEventListener("input", nfUpdate); $(id).addEventListener("change", nfUpdate); });
-  ["nf-pname", "nf-pphone", "nf-pemail"].forEach(function (id) { $(id).addEventListener("input", nfSavePilot); $(id).addEventListener("change", nfSavePilot); });
+  ["nf-site", "nf-date", "nf-start", "nf-dur", "nf-pname", "nf-pphone", "nf-pemail", "nf-rid"].forEach(function (id) { $(id).addEventListener("input", nfUpdate); $(id).addEventListener("change", nfUpdate); });
+  ["nf-pname", "nf-pphone", "nf-pemail", "nf-rid"].forEach(function (id) { $(id).addEventListener("input", nfSavePilot); $(id).addEventListener("change", nfSavePilot); });
+  function ridHelp(open) { $("rid-help").hidden = !open; $("rid-help-btn").setAttribute("aria-expanded", String(open)); }
+  $("rid-help-btn").addEventListener("click", function () { ridHelp($("rid-help").hidden); });
+  $("rid-help-close").addEventListener("click", function () { ridHelp(false); $("rid-help-btn").focus(); });
   $("nf-copy").addEventListener("click", function () {
     var txt = nfText();
     function fallback() {
