@@ -954,9 +954,19 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
   }
 
   // ---------- events ----------
+  // Pressing Check stamps the notification's date and start time with the current moment.
+  function checkNow() {
+    run(true);
+    if (queries.some(function (q) { return !q.error; })) {
+      var now = new Date();
+      $("nf-date").value = todayISO();
+      $("nf-start").value = ("0" + now.getHours()).slice(-2) + ":" + ("0" + now.getMinutes()).slice(-2);
+      nfUpdate();
+    }
+  }
   $("form").addEventListener("submit", function (e) {
     e.preventDefault();
-    run(true);
+    checkNow();
     // The verdict sits below the notification form; bring it into view on phones.
     var top = $("verdict").getBoundingClientRect().top;
     if (top > window.innerHeight - 120 || top < 0) $("verdict").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
@@ -967,7 +977,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     if (DB) { renderBatch(); renderVerdict(null); nfSetQuery(null); }
     $("coords").focus();
   });
-  $("coords").addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run(true); } });
+  $("coords").addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); checkNow(); } });
   $("radius").addEventListener("input", function () {
     var v = parseFloat(this.value);
     if (v > 0 && v <= 500) { state.radius = v; saveSettings(); if (queries.length) rerun(); }
