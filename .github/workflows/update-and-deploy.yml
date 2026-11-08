@@ -58,6 +58,7 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html facilities.json _site/
+          cp -r coa _site/
 
       - uses: actions/configure-pages@v6
 

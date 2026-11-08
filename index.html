@@ -87,6 +87,35 @@ textarea:focus-visible, input:focus-visible, button:focus-visible, a:focus-visib
 .clear:hover { border-color: var(--muted); }
 .go:disabled { opacity: .45; cursor: progress; }
 
+/* Flight notification */
+.notify { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; }
+.notify-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.notify h2 { margin: 0; font-family: var(--f-display); font-weight: 700; font-size: 20px; letter-spacing: .06em; text-transform: uppercase; }
+.notify-head a { font-size: 14px; font-weight: 600; }
+.nf-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; }
+.nf-field { display: grid; gap: 4px; min-width: 0; }
+.nf-field.wide { grid-column: span 2; }
+.nf-field input { width: 100%; min-width: 0; font-family: var(--f-mono); font-size: 16px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); }
+.nf-field input[readonly] { background: transparent; border-style: dashed; }
+.nf-msgs { display: grid; gap: 4px; }
+.nf-msg { margin: 0; font-size: 14px; color: var(--muted); }
+.nf-msg.good { color: var(--green-hi); font-weight: 600; }
+.nf-msg.bad { color: var(--red-hi); font-weight: 600; }
+.nf-msg.warn { color: var(--ink); }
+.nf-preview { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); font-family: var(--f-mono); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.nf-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; font-family: var(--f-display); font-weight: 700; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--field); color: var(--ink); cursor: pointer; }
+.btn:hover { border-color: var(--muted); color: var(--ink); }
+.btn.primary { border-color: var(--ink); background: var(--ink); color: var(--bg); }
+.btn.primary:hover { background: #FFFFFF; color: var(--bg); }
+.nf-contact { margin: 0; font-size: 13px; color: var(--muted); }
+.nf-contact a { color: var(--ink); }
+@media (max-width: 640px) {
+  .nf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nf-field.wide, .nf-field.full-sm { grid-column: 1 / -1; }
+  .nf-actions .btn { flex: 1 1 auto; }
+}
+
 /* Batch table */
 .batch { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .batch-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 16px 8px; flex-wrap: wrap; }
@@ -197,6 +226,30 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     </div>
   </form>
 
+  <section class="notify" id="notify" aria-labelledby="nf-title">
+    <div class="notify-head">
+      <h2 id="nf-title">Flight notification</h2>
+      <a href="coa/AOI-2025-P107-ESA-26380-Nationwide.pdf" target="_blank" rel="noopener">View COA 2025-P107-ESA-26380 (PDF)</a>
+    </div>
+    <div class="nf-grid">
+      <label class="nf-field full-sm"><span class="lbl">Site ID</span><input id="nf-site" type="text" placeholder="Site FA number" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+      <label class="nf-field wide"><span class="lbl">Lat/Long</span><input id="nf-ll" type="text" readonly placeholder="Filled in when you check coordinates"></label>
+      <label class="nf-field full-sm"><span class="lbl">COA #</span><input id="nf-coa" type="text" readonly value="2025-P107-ESA-26380"></label>
+      <label class="nf-field full-sm"><span class="lbl">Date</span><input id="nf-date" type="date"></label>
+      <label class="nf-field"><span class="lbl">Start time</span><input id="nf-start" type="time"></label>
+      <label class="nf-field"><span class="lbl">End time</span><input id="nf-end" type="time"></label>
+    </div>
+    <div class="nf-msgs" id="nf-msgs" aria-live="polite"></div>
+    <pre class="nf-preview" id="nf-preview" aria-label="Notification text"></pre>
+    <div class="nf-actions">
+      <a class="btn primary" id="nf-sms" href="#">Text Air Ops</a>
+      <a class="btn" id="nf-email" href="#">Email Air Ops</a>
+      <button type="button" class="btn" id="nf-copy">Copy</button>
+      <span class="copied" id="nf-copied" aria-live="polite"></span>
+    </div>
+    <p class="nf-contact">Schedule by text to <a href="sms:+19132191370">913.219.1370</a> or email <a href="mailto:airopsinc@outlook.com">airopsinc@outlook.com</a>. Responsible person, who must be reachable for the whole flight: Michael den Hartog, <a href="tel:+16692476776,1">(669) 247-6776 ext. 1</a>. COA effective 9/30/2025 to 9/29/2027.</p>
+  </section>
+
   <section class="batch" id="batch" hidden>
     <div class="batch-head">
       <span class="lbl" id="batch-title">Locations</span>
@@ -261,6 +314,9 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
   var WEST_NOTE = "The longitude had no W or minus sign, so it was read as west (United States).";
   var SWAP_NOTE = "The numbers looked like longitude first, so they were swapped.";
   var ON_SITE = 0.01;
+  // From the COA PDF (FAA Form 7711-1, 2025-P107-ESA-26380) and the Air Operations memo.
+  var COA = { id: "2025-P107-ESA-26380", start: "2025-09-30", end: "2027-09-29", radiusNm: 2 };
+  var OPS_SMS = "+19132191370", OPS_EMAIL = "airopsinc@outlook.com";
 
   var DB = null, LATS = null, EFF = "";
   // All distances are in nautical miles; the radius is in NM.
@@ -729,7 +785,90 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     var q = queries[sel];
     renderVerdict(q || null);
     if (q && !q.error) { renderPlot(q); renderList(q); $("results").hidden = false; }
+    nfSetQuery(q);
   }
+
+  // ---------- flight notification ----------
+  var nfQuery = null;
+  function nfSetQuery(q) {
+    nfQuery = (q && !q.error) ? q : null;
+    $("nf-ll").value = nfQuery ? plain(nfQuery.lat, nfQuery.lon) : "";
+    nfUpdate();
+  }
+  function todayISO() {
+    var d = new Date();
+    return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+  }
+  function fmtClock(dateStr, t) {
+    return new Date(dateStr + "T" + t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  }
+  function nfWindow() {
+    var d = $("nf-date").value, s = $("nf-start").value, e = $("nf-end").value;
+    if (!d) return "";
+    var day = new Date(d + "T12:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+    if (!s && !e) return day;
+    var tz = "";
+    try { tz = new Date(d + "T" + (s || e)).toLocaleTimeString("en-US", { timeZoneName: "short" }).split(" ").pop(); } catch (err) {}
+    return day + ", " + (s ? fmtClock(d, s) : "?") + " to " + (e ? fmtClock(d, e) : "?") + (tz ? " " + tz : "");
+  }
+  function nfCheckLine() {
+    if (!nfQuery) return "";
+    var n = nfQuery.open.length;
+    return nfQuery.yes
+      ? "Landing surface check: " + RED_TEXT.toUpperCase() + " (" + n + " landing " + (n === 1 ? "surface" : "surfaces") + " within " + fmtRadius() + ")"
+      : "Landing surface check: clear, no landing surfaces within " + fmtRadius() + " (FAA data " + EFF + ")";
+  }
+  function nfText() {
+    var site = $("nf-site").value.trim();
+    return [
+      "Flight notification",
+      "Site ID: " + (site || "(not entered)"),
+      "Lat/Long: " + ($("nf-ll").value || "(not checked)"),
+      "COA #: " + COA.id,
+      "Date/time window: " + (nfWindow() || "(not entered)"),
+      nfCheckLine()
+    ].filter(Boolean).join("\n");
+  }
+  function nfUpdate() {
+    var msgs = [];
+    if (!nfQuery) msgs.push(["", "Check coordinates above to fill in the Lat/Long."]);
+    else if (nfQuery.yes) msgs.push(["bad", "This location does not fall under the national waiver: " + nfQuery.open.length + " landing " + (nfQuery.open.length === 1 ? "surface" : "surfaces") + " within " + fmtRadius() + "."]);
+    else msgs.push(["good", "Location is clear to fly under the national waiver."]);
+    if (nfQuery && +state.radius !== COA.radiusNm) msgs.push(["warn", "The radius is set to " + fmtRadius() + ". The COA uses " + COA.radiusNm + " NM."]);
+    if (nfQuery && (!state.types.A || !state.types.H || !state.types.C || !state.priv)) msgs.push(["warn", "Some facility types are turned off above, so this check may miss landing surfaces."]);
+    var d = $("nf-date").value, s = $("nf-start").value, e = $("nf-end").value;
+    if (d && (d < COA.start || d > COA.end)) msgs.push(["bad", "This date is outside the COA's effective dates (9/30/2025 to 9/29/2027)."]);
+    else if (d && d < todayISO()) msgs.push(["warn", "This date is in the past."]);
+    if (s && e && e <= s) msgs.push(["warn", "The end time is not after the start time."]);
+    var missing = [];
+    if (!$("nf-site").value.trim()) missing.push("Site ID");
+    if (!d) missing.push("date");
+    if (!s) missing.push("start time");
+    if (!e) missing.push("end time");
+    if (missing.length) msgs.push(["", "Still needed: " + missing.join(", ") + "."]);
+    $("nf-msgs").innerHTML = msgs.map(function (m) { return '<p class="nf-msg ' + m[0] + '">' + esc(m[1]) + "</p>"; }).join("");
+    var text = nfText();
+    $("nf-preview").textContent = text;
+    var site = $("nf-site").value.trim();
+    var subject = "Flight notification" + (site ? ": Site " + site : "") + (nfWindow() ? ", " + nfWindow() : "");
+    $("nf-sms").href = "sms:" + OPS_SMS + "?&body=" + encodeURIComponent(text);
+    $("nf-email").href = "mailto:" + OPS_EMAIL + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(text.replace(/\n/g, "\r\n"));
+    $("nf-copied").textContent = "";
+  }
+  ["nf-site", "nf-date", "nf-start", "nf-end"].forEach(function (id) { $(id).addEventListener("input", nfUpdate); $(id).addEventListener("change", nfUpdate); });
+  $("nf-copy").addEventListener("click", function () {
+    var txt = nfText();
+    function fallback() {
+      var ta = document.createElement("textarea"); ta.value = txt; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = false; try { ok = document.execCommand("copy"); } catch (err) {}
+      document.body.removeChild(ta);
+      $("nf-copied").textContent = ok ? "Copied." : "Copy isn't available here. Select the text above instead.";
+    }
+    try { navigator.clipboard.writeText(txt).then(function () { $("nf-copied").textContent = "Copied."; }, fallback); } catch (err) { fallback(); }
+  });
+  $("nf-date").value = todayISO();
+  nfUpdate();
 
   function run(fromInput) {
     if (!DB) return;
@@ -759,11 +898,17 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
   }
 
   // ---------- events ----------
-  $("form").addEventListener("submit", function (e) { e.preventDefault(); run(true); });
+  $("form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    run(true);
+    // The verdict sits below the notification form; bring it into view on phones.
+    var top = $("verdict").getBoundingClientRect().top;
+    if (top > window.innerHeight - 120 || top < 0) $("verdict").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  });
   $("clear").addEventListener("click", function () {
     $("coords").value = "";
     queries = []; sel = 0;
-    if (DB) { renderBatch(); renderVerdict(null); }
+    if (DB) { renderBatch(); renderVerdict(null); nfSetQuery(null); }
     $("coords").focus();
   });
   $("coords").addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run(true); } });

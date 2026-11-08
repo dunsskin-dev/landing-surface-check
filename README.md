@@ -5,6 +5,8 @@ Enter GPS coordinates and see whether any FAA-listed landing surface (airport, h
 - **Red: "Does not fall under national waiver"** means one or more landing surfaces are within the radius.
 - **Green: "Clear to fly under national waiver"** means none are.
 
+Below the coordinates, the **Flight notification** section builds the message Air Operations asks for before each flight (Site ID, Lat/Long from the checked coordinates, COA number, and the date/time window) and opens it in a text or email to Air Ops.
+
 Covers all 50 states and U.S. territories. Distance is measured to the nearest runway or helipad where the FAA has its coordinates, otherwise to the facility's reference point. Not for navigation.
 
 ## Files
@@ -13,6 +15,7 @@ Covers all 50 states and U.S. territories. Distance is measured to the nearest r
 | --- | --- |
 | `index.html` | The whole app: one web page. |
 | `facilities.json` | FAA landing facility data the page loads (about 19,400 sites). |
+| `coa/AOI-2025-P107-ESA-26380-Nationwide.pdf` | The COA (FAA Form 7711-1, 2025-P107-ESA-26380) with the Air Operations memo, linked from the Flight notification section. |
 | `tools/update_data.py` | Downloads the FAA's current 28-day NASR airport file and rebuilds `facilities.json` when it's newer. |
 | `tools/build_data.py` | Converts the FAA CSV files into `facilities.json`. Used by `update_data.py`. |
 | `.github/workflows/update-and-deploy.yml` | Weekly data check and publishing to GitHub Pages. |
