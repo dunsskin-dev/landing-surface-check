@@ -28,7 +28,7 @@ A single web page (`index.html`) that drone pilots for Air Operations Inc use on
   - Email airopsinc@outlook.com.
   - Responsible person: Michael den Hartog, (669) 247-6776 ext. 1.
   - COA effective 9/30/2025 to 9/29/2027.
-- **Open question:** gliderports, ultralight parks and balloonports are counted by default, which is stricter than the COA wording. The user hasn't said whether to turn them off by default.
+- **Every type of landing surface counts** (owner's decision): airports, heliports, seaplane bases, gliderports, ultralight parks and balloonports, public and private. All are on by default. The notification section warns if any type is switched off.
 
 ## Files
 

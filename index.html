@@ -719,7 +719,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     var inside = q.open.concat(q.closed).sort(function (a, b) { return a.d - b.d; });
     html += '<div><h2' + (q.yes ? ' class="hot"' : "") + ">Within " + esc(R) + " (" + inside.length + ")</h2>";
     html += inside.length ? "<ol>" + inside.map(function (m) { return facItem(m, false); }).join("") + "</ol>"
-      : '<p class="empty">No FAA-listed airport, heliport or seaplane base' + (state.priv ? "" : " open to the public") + " within " + esc(R) + " of this point.</p>";
+      : '<p class="empty">No FAA-listed landing surface' + (state.priv ? "" : " open to the public") + " within " + esc(R) + " of this point.</p>";
     html += "</div>";
     if (q.beyond.length) html += "<div><h2>Nearest beyond " + esc(R) + "</h2><ol>" + q.beyond.map(function (m) { return facItem(m, true); }).join("") + "</ol></div>";
     $("list").innerHTML = html;
@@ -906,7 +906,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     else if (nfQuery.yes) msgs.push(["bad", "This location does not fall under the national waiver: " + nfQuery.open.length + " landing " + (nfQuery.open.length === 1 ? "surface" : "surfaces") + " within " + fmtRadius() + "."]);
     else msgs.push(["good", "Location is clear to fly under the national waiver."]);
     if (nfQuery && +state.radius !== COA.radiusNm) msgs.push(["warn", "The radius is set to " + fmtRadius() + ". The COA uses " + COA.radiusNm + " NM."]);
-    if (nfQuery && (!state.types.A || !state.types.H || !state.types.C || !state.priv)) msgs.push(["warn", "Some facility types are turned off above, so this check may miss landing surfaces."]);
+    if (nfQuery && (!state.types.A || !state.types.H || !state.types.C || !state.types.O || !state.priv)) msgs.push(["warn", "Some facility types are turned off above, so this check may miss landing surfaces."]);
     var d = $("nf-date").value, s = $("nf-start").value, dur = $("nf-dur").value, p = nfPilot();
     if (d && (d < COA.start || d > COA.end)) msgs.push(["bad", "This date is outside the COA's effective dates (9/30/2025 to 9/29/2027)."]);
     else if (d && d < todayISO()) msgs.push(["warn", "This date is in the past."]);
