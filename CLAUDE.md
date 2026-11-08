@@ -55,4 +55,5 @@ FAA source: `https://nfdc.faa.gov/webContent/28DaySub/extra/DD_Mon_YYYY_APT_CSV.
 - **Test locally:** run `python -I -m http.server 8766 --bind 127.0.0.1 --directory "<this folder>"`, then open http://localhost:8766/.
 - **Publish:** commit to `main` and push. The workflow deploys in about 30 seconds. Check the live URL with `?v=<n>` added to skip the cache.
 - **localStorage keys:** `lsc-settings-v2` (radius and filters), `lsc-pilot` (pilot details). Don't rename them without a reason, or users lose their saved info.
+- **Restore points:** git tags. `v1.0` (2026-11-08) is the version the user signed off on, with every feature above. To see it, run `git show v1.0:index.html`. To roll the live site back, restore the files from the tag, then commit and push.
 - **New or renewed COA:** replace the PDF in `coa/` and update the `COA` constant (id, start, end), the COA # field value, the PDF link text, and the effective dates in the contact line in `index.html`.
