@@ -173,7 +173,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
 
   <form class="entry" id="form" autocomplete="off">
     <label class="lbl" for="coords">GPS coordinates</label>
-    <textarea id="coords" rows="2" spellcheck="false">39.7392, -104.9903</textarea>
+    <textarea id="coords" rows="2" spellcheck="false" placeholder="e.g. 39.7392, -104.9903"></textarea>
     <p class="hint">One location per line. Decimal <code>39.7392, -104.9903</code>, degrees and minutes <code>N39 44.35 W104 59.42</code>, or DMS <code>39°44'21"N 104°59'25"W</code>. A Google Maps link works too. Put a name before a colon to label a line: <code>Site A: 39.74, -104.99</code></p>
     <div class="controls">
       <div class="group radius">
@@ -215,7 +215,6 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     <p class="vsub" id="vsub"></p>
     <div id="vnotes"></div>
     <div class="vtools" id="vtools" hidden>
-      <span class="tag" id="example-tag" hidden>Example location</span>
       <button type="button" class="linkbtn" id="copy">Copy result</button>
       <a id="point-map" href="#" target="_blank" rel="noopener">Satellite view of this point</a>
       <span class="copied" id="copied" aria-live="polite"></span>
@@ -241,7 +240,6 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
 (function () {
   "use strict";
   var R_MI = 3958.7613, DEG = Math.PI / 180, MI_PER_NM = 1.150779;
-  var EXAMPLE = "39.7392, -104.9903";
   var RED_TEXT = "Does not fall under national waiver";
   var GREEN_TEXT = "Clear to fly under national waiver";
   var TYPES = [
@@ -264,7 +262,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
 
   var DB = null, LATS = null, EFF = "";
   var state = { radius: 2, unit: "mi", types: { A: true, H: true, C: true, O: true }, priv: true };
-  var queries = [], sel = 0, edited = false;
+  var queries = [], sel = 0;
   var $ = function (id) { return document.getElementById(id); };
 
   // ---------- settings ----------
@@ -603,7 +601,6 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     $("vsub").textContent = sub.join(" ");
     $("vnotes").innerHTML = q.notes.map(function (nt) { return '<p class="note">' + esc(nt) + "</p>"; }).join("");
     $("vtools").hidden = false;
-    $("example-tag").hidden = edited || $("coords").value.trim() !== EXAMPLE;
     $("point-map").href = satUrl(q.lat, q.lon);
     $("copied").textContent = "";
   }
@@ -755,7 +752,6 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
   // ---------- events ----------
   $("form").addEventListener("submit", function (e) { e.preventDefault(); run(true); });
   $("coords").addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run(true); } });
-  $("coords").addEventListener("input", function () { edited = true; });
   $("radius").addEventListener("input", function () {
     var v = parseFloat(this.value);
     if (v > 0 && v <= 500) { state.radius = v; saveSettings(); if (queries.length) rerun(); }
@@ -795,7 +791,9 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     $("foot-data").textContent = "Source: FAA National Airspace System Resources (NASR) 28-day airport data, effective " + effTxt +
       ". Covers all 50 states and U.S. territories: " + DB.length.toLocaleString() + " airports, heliports, seaplane bases, gliderports, ultralight parks and balloonports, public and private. Permanently closed sites are excluded.";
     $("go").disabled = false;
-    run(true);
+    // Always open with an empty box (browsers can otherwise restore the last text on reload).
+    $("coords").value = "";
+    renderVerdict(null);
   }).catch(function () {
     $("verdict").dataset.state = "err";
     $("word").textContent = "Data didn't load";
