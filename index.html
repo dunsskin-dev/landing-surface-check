@@ -67,17 +67,14 @@ textarea {
   font-family: var(--f-mono); font-size: 16px; line-height: 1.5; color: var(--ink);
   background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
 }
-textarea:focus-visible, input:focus-visible, button:focus-visible, a:focus-visible, label.chip:focus-within, .seg label:focus-within, tr:focus-visible { outline: 2px solid var(--green-hi); outline-offset: 2px; }
+textarea:focus-visible, input:focus-visible, button:focus-visible, a:focus-visible, label.chip:focus-within, tr:focus-visible { outline: 2px solid var(--green-hi); outline-offset: 2px; }
 .hint { font-size: 13px; color: var(--muted); margin: 0; max-width: 72ch; }
 .hint code { font-family: var(--f-mono); font-size: 12px; color: var(--ink); background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; white-space: nowrap; }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
 .group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .radius input { width: 5.2em; font-family: var(--f-mono); font-size: 16px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); }
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-.seg label { position: relative; padding: 6px 10px; font-family: var(--f-mono); font-size: 13px; cursor: pointer; color: var(--muted); background: var(--field); }
-.seg label + label { border-left: 1px solid var(--line); }
-.seg input, .chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.seg label:has(input:checked) { background: var(--ink); color: var(--bg); }
+.unit { font-family: var(--f-mono); font-size: 14px; color: var(--ink); }
+.chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .chip { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 13.5px; cursor: pointer; color: var(--muted); background: var(--field); user-select: none; }
 .chip::before { content: ""; width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid currentColor; }
 .chip:has(input:checked) { color: var(--ink); border-color: var(--muted); }
@@ -183,11 +180,8 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     <div class="controls">
       <div class="group radius">
         <label class="lbl" for="radius">Radius</label>
-        <input id="radius" type="number" min="0.1" max="50" step="0.1" value="2" inputmode="decimal">
-        <span class="seg" role="radiogroup" aria-label="Distance unit">
-          <label><input type="radio" name="unit" id="unit-nm" value="nm" checked>NM</label>
-          <label><input type="radio" name="unit" id="unit-mi" value="mi">mi</label>
-        </span>
+        <input id="radius" aria-label="Radius in nautical miles" type="number" min="0.1" max="50" step="0.1" value="2" inputmode="decimal">
+        <span class="unit">NM</span>
       </div>
       <div class="group" role="group" aria-label="Facility types to count">
         <label class="chip"><input type="checkbox" id="t-A" checked>Airports</label>
@@ -269,24 +263,23 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
   var ON_SITE = 0.01;
 
   var DB = null, LATS = null, EFF = "";
-  var state = { radius: 2, unit: "nm", types: { A: true, H: true, C: true, O: true }, priv: true };
+  // All distances are in nautical miles; the radius is in NM.
+  var state = { radius: 2, types: { A: true, H: true, C: true, O: true }, priv: true };
   var queries = [], sel = 0;
   var $ = function (id) { return document.getElementById(id); };
 
   // ---------- settings ----------
   try {
-    // v2: the default unit changed to nautical miles, so settings saved under the old key are ignored.
+    // v2: distances switched to nautical miles, so settings saved under the old key are ignored.
     var saved = JSON.parse(localStorage.getItem("lsc-settings-v2") || "null");
     if (saved && typeof saved === "object") {
       if (saved.radius > 0) state.radius = saved.radius;
-      if (saved.unit === "nm" || saved.unit === "mi") state.unit = saved.unit;
       if (saved.types) for (var k in state.types) if (k in saved.types) state.types[k] = !!saved.types[k];
       if ("priv" in saved) state.priv = !!saved.priv;
     }
   } catch (e) {}
   function saveSettings() { try { localStorage.setItem("lsc-settings-v2", JSON.stringify(state)); } catch (e) {} }
   $("radius").value = state.radius;
-  $("unit-" + state.unit).checked = true;
   ["A", "H", "C", "O"].forEach(function (k) { $("t-" + k).checked = state.types[k]; });
   $("t-PR").checked = state.priv;
 
@@ -298,12 +291,13 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     var a = Math.sin(dla / 2) * Math.sin(dla / 2) + Math.cos(la1 * DEG) * Math.cos(la2 * DEG) * Math.sin(dlo / 2) * Math.sin(dlo / 2);
     return 2 * R_MI * Math.asin(Math.min(1, Math.sqrt(a)));
   }
-  function radiusMi() { return state.unit === "nm" ? state.radius * MI_PER_NM : state.radius; }
+  // Distances are computed internally in statute miles and shown in nautical miles.
+  function radiusMi() { return state.radius * MI_PER_NM; }
   function fmtDist(mi) {
-    var v = state.unit === "nm" ? mi / MI_PER_NM : mi;
+    var v = mi / MI_PER_NM;
     return (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.round(v).toLocaleString());
   }
-  function unitLabel() { return state.unit === "nm" ? "NM" : "mi"; }
+  function unitLabel() { return "NM"; }
   function fmtRadius() { return (+state.radius).toString() + " " + unitLabel(); }
   function compass(b) { return COMPASS[Math.round(b / 22.5) % 16]; }
   function pad3(n) { n = Math.round(n) % 360; return ("00" + n).slice(-3); }
@@ -776,9 +770,6 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
   $("radius").addEventListener("input", function () {
     var v = parseFloat(this.value);
     if (v > 0 && v <= 500) { state.radius = v; saveSettings(); if (queries.length) rerun(); }
-  });
-  document.querySelectorAll('input[name="unit"]').forEach(function (el) {
-    el.addEventListener("change", function () { state.unit = this.value; saveSettings(); if (queries.length) rerun(); });
   });
   ["A", "H", "C", "O"].forEach(function (k) {
     $("t-" + k).addEventListener("change", function () { state.types[k] = this.checked; saveSettings(); if (queries.length) rerun(); });
