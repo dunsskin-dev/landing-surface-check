@@ -1,6 +1,6 @@
 # Landing Surface Check
 
-Enter GPS coordinates and see whether any FAA-listed landing surface (airport, heliport, seaplane base, gliderport, ultralight park or balloonport, public or private) is within 2 miles:
+Enter GPS coordinates and see whether any FAA-listed landing surface (airport, heliport, seaplane base, gliderport, ultralight park or balloonport, public or private) is within 2 nautical miles (the radius and unit can be changed on the page):
 
 - **Red: "Does not fall under national waiver"** means one or more landing surfaces are within the radius.
 - **Green: "Clear to fly under national waiver"** means none are.
