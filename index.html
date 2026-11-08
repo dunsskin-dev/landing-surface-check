@@ -82,8 +82,12 @@ textarea:focus-visible, input:focus-visible, button:focus-visible, a:focus-visib
 .chip::before { content: ""; width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid currentColor; }
 .chip:has(input:checked) { color: var(--ink); border-color: var(--muted); }
 .chip:has(input:checked)::before { background: var(--ink); border-color: var(--ink); }
-.go { margin-left: auto; font-family: var(--f-display); font-weight: 700; font-size: 17px; letter-spacing: .08em; text-transform: uppercase; padding: 9px 26px; border-radius: 8px; border: 0; background: var(--ink); color: var(--bg); cursor: pointer; }
+.actions { margin-left: auto; display: flex; gap: 8px; }
+.go, .clear { font-family: var(--f-display); font-weight: 700; font-size: 17px; letter-spacing: .08em; text-transform: uppercase; padding: 9px 26px; border-radius: 8px; cursor: pointer; }
+.go { border: 0; background: var(--ink); color: var(--bg); }
 .go:hover { background: #FFFFFF; }
+.clear { padding-inline: 18px; border: 1px solid var(--line); background: var(--field); color: var(--ink); }
+.clear:hover { border-color: var(--muted); }
 .go:disabled { opacity: .45; cursor: progress; }
 
 /* Batch table */
@@ -150,7 +154,8 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
 .dist small { font-family: var(--f-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
 .empty { background: var(--panel); border: 1px dashed var(--line); border-radius: 8px; padding: 14px; color: var(--green-hi); font-size: 14px; margin: 0; }
 @media (max-width: 480px) {
-  .go { margin-left: 0; width: 100%; }
+  .actions { margin-left: 0; width: 100%; }
+  .go { flex: 1; }
   .fac { grid-template-columns: minmax(0, 1fr); }
   .dist { grid-row: auto; grid-column: auto; text-align: left; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 }
@@ -191,7 +196,10 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
         <label class="chip"><input type="checkbox" id="t-O" checked>Glider, ultralight, balloon</label>
         <label class="chip"><input type="checkbox" id="t-PR" checked>Private use</label>
       </div>
-      <button class="go" id="go" type="submit" disabled>Check</button>
+      <div class="actions">
+        <button class="clear" id="clear" type="button">Clear</button>
+        <button class="go" id="go" type="submit" disabled>Check</button>
+      </div>
     </div>
   </form>
 
@@ -328,16 +336,22 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     var m = line.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/) ||
             line.match(/[?&](?:q|query|ll|center|destination)=(-?\d+(?:\.\d+)?)(?:,|%2C)\s*(-?\d+(?:\.\d+)?)/i);
     if (m) { q.lat = +m[1]; q.lon = +m[2]; q.lonExplicit = true; q.fixedOrder = true; return validate(q); }
+    var p = null;
     var fields = line.split(/\t|,/).map(function (s) { return s.trim(); });
     if (fields.length >= 3 && isNum(fields[fields.length - 2]) && isNum(fields[fields.length - 1])) {
       label = fields.slice(0, -2).join(", ");
       line = fields[fields.length - 2] + ", " + fields[fields.length - 1];
     } else {
+      // "Name: coords". Only treat the text before the colon as a name if what follows it
+      // reads as coordinates; otherwise (e.g. "Lat: 39.7, Lon: -104.9") parse the whole line.
       var ci = line.lastIndexOf(":");
-      if (ci > 0 && /[A-Za-z]{2,}/.test(line.slice(0, ci))) { label = line.slice(0, ci).trim(); line = line.slice(ci + 1); }
+      if (ci > 0 && /[A-Za-z]/.test(line.slice(0, ci))) {
+        var afterColon = parseCoordText(line.slice(ci + 1));
+        if (!afterColon.error) { label = line.slice(0, ci).trim(); p = afterColon; }
+      }
     }
     q.label = label.replace(/^["']|["']$/g, "");
-    var p = parseCoordText(line);
+    if (!p) p = parseCoordText(line);
     if (p.error) { q.error = p.error; return q; }
     q.lat = p.lat; q.lon = p.lon; q.lonExplicit = p.lonExplicit; q.latSigned = p.latSigned;
     q.fixedOrder = p.hemi || p.swapped;
@@ -751,6 +765,12 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
 
   // ---------- events ----------
   $("form").addEventListener("submit", function (e) { e.preventDefault(); run(true); });
+  $("clear").addEventListener("click", function () {
+    $("coords").value = "";
+    queries = []; sel = 0;
+    if (DB) { renderBatch(); renderVerdict(null); }
+    $("coords").focus();
+  });
   $("coords").addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run(true); } });
   $("radius").addEventListener("input", function () {
     var v = parseFloat(this.value);
