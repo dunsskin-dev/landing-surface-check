@@ -303,7 +303,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     <div id="vnotes"></div>
     <div class="vtools" id="vtools" hidden>
       <button type="button" class="linkbtn" id="copy">Copy result</button>
-      <a id="point-map" href="#" target="_blank" rel="noopener">Satellite view of this point</a>
+      <a id="point-map" href="#" target="_blank" rel="noopener">Open this point in Maps</a>
       <span class="copied" id="copied" aria-live="polite"></span>
     </div>
   </section>
@@ -399,6 +399,23 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
   }
   function plain(lat, lon) { return lat.toFixed(5) + ", " + lon.toFixed(5); }
   function satUrl(lat, lon) { return "https://www.google.com/maps/@?api=1&map_action=map&center=" + lat.toFixed(6) + "%2C" + lon.toFixed(6) + "&zoom=16&basemap=satellite"; }
+  // Drops a pin in the phone's own maps app: Android's geo: link opens the
+  // default maps app (or asks which one), iPhone/iPad opens Apple Maps, and a
+  // computer opens Google Maps in the browser.
+  var UA = navigator.userAgent || "";
+  var IS_ANDROID = /Android/i.test(UA);
+  var IS_IOS = /iPhone|iPad|iPod/.test(UA) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  function pinUrl(lat, lon) {
+    var ll = lat.toFixed(6) + "," + lon.toFixed(6);
+    if (IS_ANDROID) return "geo:" + ll + "?q=" + ll;
+    if (IS_IOS) return "https://maps.apple.com/?ll=" + ll + "&q=" + encodeURIComponent(ll);
+    return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(ll);
+  }
+  function setPinLink(a, lat, lon) {
+    a.href = pinUrl(lat, lon);
+    // geo: hands off to the maps app, so it shouldn't open an empty tab.
+    if (IS_ANDROID) a.removeAttribute("target"); else a.target = "_blank";
+  }
   function titleCity(s) { return s.toLowerCase().replace(/\b([a-z])/g, function (m) { return m.toUpperCase(); }); }
   function surfName(code) {
     if (!code) return "";
@@ -685,7 +702,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     $("vsub").textContent = sub.join(" ");
     $("vnotes").innerHTML = q.notes.map(function (nt) { return '<p class="note">' + esc(nt) + "</p>"; }).join("");
     $("vtools").hidden = false;
-    $("point-map").href = satUrl(q.lat, q.lon);
+    setPinLink($("point-map"), q.lat, q.lon);
     $("copied").textContent = "";
   }
 
