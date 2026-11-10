@@ -10,6 +10,16 @@ A single web page (`index.html`) that drone pilots for Air Operations Inc use on
 1. Enter GPS coordinates and press **Check**. The result turns **red: "Does not fall under national waiver"** if any FAA-listed landing surface is within 2 NM, or **green: "Clear to fly under national waiver"** if none is. This implements special provision 2.h(3) of COA 2025-P107-ESA-26380 (no operating within 2 NM of a landing surface of an airport, heliport or seaplane base).
 2. Fill in the **Flight notification** section and send it to Air Ops by text or email.
 
+The coordinate box also takes a **street address**. Any line that isn't coordinates but contains words is looked up with OpenStreetMap's free Nominatim service (`nominatim.openstreetmap.org`, no key, limited to U.S. states and territories). The page then shows "Address found: ..." so the pilot can confirm the match.
+- Lookups follow Nominatim's usage policy: at most one request a second, results cached per page load, and attribution in the footer.
+- A match to a town or anything larger (`place_rank` ≤ 20) is refused.
+- A ZIP code, park or neighborhood match (21 to 25) is checked from the area's center point, with a note saying so.
+- A street-level match (26 to 29) also gets a note.
+
+The US Census geocoder can't be used, because it doesn't send CORS headers.
+
+The **Open this point in Maps** link drops a pin in the device's maps app: a `geo:` link on Android, Apple Maps on iPhone and iPad, and Google Maps on a computer.
+
 ## Decisions the user has made (keep these)
 
 - Black background; red and green as the only accent colors. Single dark theme.

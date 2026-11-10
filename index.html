@@ -146,6 +146,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
 .vline { font-size: 18px; font-weight: 600; line-height: 1.3; margin: 0; text-wrap: balance; }
 .vsub { margin: 0; font-size: 14.5px; opacity: .88; }
 .where { font-family: var(--f-mono); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 14px; opacity: .92; }
+.where .addr { flex-basis: 100%; overflow-wrap: anywhere; }
 .verdict .note { margin: 0; font-size: 14px; font-weight: 600; }
 .verdict .note::before { content: "Note: "; }
 .vtools { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 4px; }
@@ -207,9 +208,9 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
   </header>
 
   <form class="entry" id="form" autocomplete="off">
-    <label class="lbl" for="coords">GPS coordinates</label>
-    <textarea id="coords" rows="2" spellcheck="false" placeholder="e.g. 39.7392, -104.9903"></textarea>
-    <p class="hint">One location per line. Decimal <code>39.7392, -104.9903</code>, degrees and minutes <code>N39 44.35 W104 59.42</code>, or DMS <code>39°44'21"N 104°59'25"W</code>. A Google Maps link works too. Put a name before a colon to label a line: <code>Site A: 39.74, -104.99</code></p>
+    <label class="lbl" for="coords">GPS coordinates or address</label>
+    <textarea id="coords" rows="2" spellcheck="false" placeholder="e.g. 39.7392, -104.9903 or 123 Main St, Denver, CO"></textarea>
+    <p class="hint">One location per line. Decimal <code>39.7392, -104.9903</code>, degrees and minutes <code>N39 44.35 W104 59.42</code>, or DMS <code>39°44'21"N 104°59'25"W</code>. A Google Maps link works too. A street address works too: include the city and state, and check the address it finds. Put a name before a colon to label a line: <code>Site A: 39.74, -104.99</code></p>
     <div class="controls">
       <div class="group radius">
         <label class="lbl" for="radius">Radius</label>
@@ -320,6 +321,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     <p id="foot-data">Source: FAA National Airspace System Resources (NASR) airport data.</p>
     <p>Distance is measured to the nearest runway or helipad when the FAA has its coordinates on file, otherwise to the facility's reference point. Only facilities registered with the FAA are included. Unregistered fields, farm strips and rooftop pads won't appear. Facilities the FAA lists as closed indefinitely are shown but don't change the verdict. Not for navigation; confirm with current charts and the terms of your waiver.</p>
     <p>The FAA data is checked every week and updated automatically whenever the FAA publishes a new 28-day cycle.</p>
+    <p>Addresses are looked up with <a href="https://nominatim.openstreetmap.org/" target="_blank" rel="noopener">Nominatim</a>, using map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>. A typed address is sent to that service; coordinates never leave your phone.</p>
   </footer>
 </div>
 
@@ -449,11 +451,27 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     }
     q.label = label.replace(/^["']|["']$/g, "");
     if (!p) p = parseCoordText(line);
-    if (p.error) { q.error = p.error; return q; }
+    if (p.error) {
+      // Not coordinates, but it has words in it: look it up as a street address.
+      var addr = raw.trim();
+      if (looksLikeAddress(addr)) {
+        var lc = addr.indexOf(":");
+        q.label = "";
+        if (lc > 0 && lc < addr.length - 1) { q.label = addr.slice(0, lc).trim(); addr = addr.slice(lc + 1).trim(); }
+        q.address = addr; q.pending = true;
+        return q;
+      }
+      q.error = p.error; return q;
+    }
     q.lat = p.lat; q.lon = p.lon; q.lonExplicit = p.lonExplicit; q.latSigned = p.latSigned;
     q.fixedOrder = p.hemi || p.swapped;
     if (p.swapped) q.parseNotes.push(SWAP_NOTE);
     return validate(q);
+  }
+
+  function looksLikeAddress(s) {
+    if (/:\/\/|\bwww\./i.test(s)) return false; // a link that didn't contain coordinates
+    return /[A-Za-z]{2,}/.test(s.replace(/\b(LATITUDE|LAT|LONGITUDE|LONG|LON|LNG|DEG|DEGREES?|NORTH|SOUTH|EAST|WEST)\b/gi, " "));
   }
 
   function validate(q) {
@@ -602,7 +620,7 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
   }
 
   function analyze(q) {
-    if (q.error) return q;
+    if (q.error || q.pending) return q;
     if (q.origLat === undefined) { q.origLat = q.lat; q.origLon = q.lon; }
     q.lat = q.origLat; q.lon = q.origLon;
     q.notes = q.parseNotes.slice();
@@ -677,13 +695,23 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     $("vtools").hidden = true;
     $("results").hidden = true;
     $("vnotes").innerHTML = "";
-    if (!q) { v.dataset.state = ""; $("word").textContent = "Enter coordinates"; $("vline").textContent = "Type or paste GPS coordinates above and press Check."; $("where").innerHTML = ""; $("vsub").textContent = ""; return; }
+    if (!q) { v.dataset.state = ""; $("word").textContent = "Enter coordinates"; $("vline").textContent = "Type or paste GPS coordinates or an address above and press Check."; $("where").innerHTML = ""; $("vsub").textContent = ""; return; }
+    if (q.pending) {
+      v.dataset.state = "";
+      $("word").textContent = "Looking up address…";
+      $("vline").textContent = q.address;
+      $("where").innerHTML = q.label ? "<span>" + esc(q.label) + "</span>" : "";
+      $("vsub").textContent = "";
+      return;
+    }
     if (q.error) {
       v.dataset.state = "err";
-      $("word").textContent = "Check the coordinates";
+      $("word").textContent = q.address ? "Check the address" : "Check the coordinates";
       $("vline").textContent = q.error;
       $("where").innerHTML = "<span>" + esc(q.raw.trim()) + "</span>";
-      $("vsub").textContent = "Accepted: decimal degrees, degrees and minutes, or degrees-minutes-seconds.";
+      $("vsub").textContent = q.address
+        ? "Include the street, city and state, or enter GPS coordinates instead."
+        : "Accepted: decimal degrees, degrees and minutes, degrees-minutes-seconds, or a street address.";
       return;
     }
     var n = q.open.length, R = fmtRadius();
@@ -692,7 +720,9 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     $("vline").textContent = q.yes
       ? n + " landing " + (n === 1 ? "surface" : "surfaces") + " within " + R + "."
       : "No landing surfaces within " + R + ".";
-    $("where").innerHTML = (q.label ? "<span>" + esc(q.label) + "</span>" : "") + "<span>" + fmtDec(q.lat, q.lon) + "</span><span>" + fmtDDM(q.lat, q.lon) + "</span>";
+    $("where").innerHTML = (q.label ? "<span>" + esc(q.label) + "</span>" : "") +
+      (q.found ? '<span class="addr">Address found: ' + esc(q.found.name) + "</span>" : "") +
+      "<span>" + fmtDec(q.lat, q.lon) + "</span><span>" + fmtDDM(q.lat, q.lon) + "</span>";
     var sub = [];
     if (q.closest) {
       var r = DB[q.closest.i];
@@ -805,10 +835,11 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     var box = $("batch");
     if (queries.length < 2) { box.hidden = true; return; }
     box.hidden = false;
-    var clear = queries.filter(function (q) { return !q.error && !q.yes; }).length;
+    var clear = queries.filter(function (q) { return !q.error && !q.pending && !q.yes; }).length;
     $("batch-title").textContent = queries.length + " locations · " + clear + " clear to fly under national waiver";
     $("batch-rows").innerHTML = queries.map(function (q, i) {
       var name = esc(q.label || "Line " + q.lineNo);
+      if (q.pending) return '<tr data-i="' + i + '" aria-selected="' + (i === sel) + '" tabindex="0"><td>' + name + '</td><td class="coord">' + esc(q.address.slice(0, 40)) + '</td><td><span class="pill">Looking up</span></td><td></td></tr>';
       if (q.error) return '<tr data-i="' + i + '" aria-selected="' + (i === sel) + '" tabindex="0"><td>' + name + '</td><td class="coord">' + esc(q.raw.trim().slice(0, 40)) + '</td><td><span class="pill err">Check input</span></td><td>' + esc(q.error) + "</td></tr>";
       var c = q.closest ? DB[q.closest.i][0] + " · " + distDir(q.closest) : "None found";
       if (q.yes) c = q.open.length + " within " + fmtRadius() + " · closest " + c;
@@ -820,14 +851,14 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
   function renderSelected() {
     var q = queries[sel];
     renderVerdict(q || null);
-    if (q && !q.error) { renderPlot(q); renderList(q); $("results").hidden = false; }
+    if (q && !q.error && !q.pending) { renderPlot(q); renderList(q); $("results").hidden = false; }
     nfSetQuery(q);
   }
 
   // ---------- flight notification ----------
   var nfQuery = null;
   function nfSetQuery(q) {
-    nfQuery = (q && !q.error) ? q : null;
+    nfQuery = (q && !q.error && !q.pending) ? q : null;
     $("nf-ll").value = nfQuery ? plain(nfQuery.lat, nfQuery.lon) : "";
     nfUpdate();
   }
@@ -959,8 +990,9 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     var head = "Landing surface check · radius " + fmtRadius() + " · FAA data effective " + EFF;
     var body = queries.map(function (q) {
       var name = q.label ? q.label + ": " : "";
+      if (q.pending) return name + q.address + " → still looking up the address";
       if (q.error) return name + q.raw.trim() + " → could not read (" + q.error + ")";
-      var t = name + plain(q.lat, q.lon) + " → " + (q.yes
+      var t = name + (q.found ? q.address + " (" + plain(q.lat, q.lon) + ")" : plain(q.lat, q.lon)) + " → " + (q.yes
         ? RED_TEXT.toUpperCase() + " (" + q.open.length + " landing " + (q.open.length === 1 ? "surface" : "surfaces") + " within " + fmtRadius() + ")"
         : GREEN_TEXT.toUpperCase() + " (no landing surfaces within " + fmtRadius() + ")");
       var rows = q.open.slice(0, 8).map(function (m) { return "  - " + facLine(m); });
@@ -970,16 +1002,72 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
     return [head].concat(body).join("\n");
   }
 
+  // ---------- address lookup ----------
+  // Street addresses are looked up with OpenStreetMap's free Nominatim service. Its usage policy
+  // (operations.osmfoundation.org/policies/nominatim) allows at most one request a second and asks
+  // for repeat lookups to be cached, so lookups run one at a time and results are kept per page load.
+  var GEO_URL = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us,pr,vi,gu,as,mp&q=";
+  var geoCache = {}, geoLast = 0, lookupRun = 0;
+  function geocode(text) {
+    var key = text.toLowerCase().replace(/\s+/g, " ");
+    if (geoCache[key]) return Promise.resolve(geoCache[key]);
+    var wait = Math.max(0, geoLast + 1100 - Date.now());
+    return new Promise(function (ok) { setTimeout(ok, wait); }).then(function () {
+      geoLast = Date.now();
+      var ctl = window.AbortController ? new AbortController() : null;
+      var timer = ctl && setTimeout(function () { ctl.abort(); }, 12000);
+      return fetch(GEO_URL + encodeURIComponent(text), ctl ? { signal: ctl.signal } : {})
+        .then(function (r) { clearTimeout(timer); if (!r.ok) throw new Error(r.status); return r.json(); });
+    }).then(function (d) {
+      var x = d && d[0];
+      var hit = x ? { lat: +x.lat, lon: +x.lon, rank: +x.place_rank, name: String(x.display_name || "").replace(/, United States$/, "") } : { none: true };
+      geoCache[key] = hit;
+      return hit;
+    });
+  }
+  // place_rank: 30 is a building or house number, 26-29 a street, 21-25 a ZIP code, park or
+  // neighborhood, 20 and below a town, county or state (Nominatim's own scale).
+  function applyHit(q, hit) {
+    if (hit.none) { q.error = "Couldn't find that address."; return; }
+    if (!(hit.rank > 20)) { q.error = "That matched " + hit.name + ", a whole town or region rather than one location."; return; }
+    q.found = hit; q.lat = hit.lat; q.lon = hit.lon;
+    q.lonExplicit = q.fixedOrder = q.latSigned = true; // coordinates came from the lookup, so never reinterpret them
+    if (hit.rank <= 25) q.parseNotes.push("This matched an area (a ZIP code, park or neighborhood), not one spot, so the check used its center point. For an exact answer, enter the launch site's street address or GPS coordinates.");
+    else if (hit.rank < 30) q.parseNotes.push("This matched the street, not the exact house number, so the check used a point on that street.");
+  }
+  function lookUpAddresses() {
+    var token = ++lookupRun;
+    var list = queries.filter(function (q) { return q.pending; });
+    if (!list.length) { $("go").disabled = !DB; return Promise.resolve(); }
+    $("go").disabled = true;
+    return list.reduce(function (chain, q) {
+      return chain.then(function () {
+        if (token !== lookupRun) return;
+        return geocode(q.address).then(function (hit) { applyHit(q, hit); }, function () {
+          q.error = "The address lookup didn't respond. Check your signal and press Check again.";
+        }).then(function () {
+          if (token !== lookupRun) return;
+          q.pending = false;
+          analyze(q);
+          renderBatch();
+          if (queries[sel] === q) renderSelected();
+        });
+      });
+    }, Promise.resolve()).then(function () { if (token === lookupRun) $("go").disabled = false; });
+  }
+
   // ---------- events ----------
-  // Pressing Check stamps the notification's date and start time with the current moment.
+  // Pressing Check stamps the notification's date and start time with the current moment
+  // (once any address on the list has been looked up).
   function checkNow() {
     run(true);
-    if (queries.some(function (q) { return !q.error; })) {
+    lookUpAddresses().then(function () {
+      if (!queries.some(function (q) { return !q.error && !q.pending; })) return;
       var now = new Date();
       $("nf-date").value = todayISO();
       $("nf-start").value = ("0" + now.getHours()).slice(-2) + ":" + ("0" + now.getMinutes()).slice(-2);
       nfUpdate();
-    }
+    });
   }
   $("form").addEventListener("submit", function (e) {
     e.preventDefault();
@@ -991,6 +1079,8 @@ td.coord { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
   $("clear").addEventListener("click", function () {
     $("coords").value = "";
     queries = []; sel = 0;
+    lookupRun++; // drop any address lookup still in progress
+    $("go").disabled = !DB;
     if (DB) { renderBatch(); renderVerdict(null); nfSetQuery(null); }
     $("coords").focus();
   });
